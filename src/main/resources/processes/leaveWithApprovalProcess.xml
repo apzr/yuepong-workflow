@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:activiti="http://activiti.org/bpmn"
+             typeLanguage="http://www.w3.org/2001/XMLSchema" expressionLanguage="http://www.w3.org/1999/XPath"
+             targetNamespace="http://www.activiti.org/test">
+    <process id="leaveWithApprovalProcess" name="leaveWithApprovalProcess" isExecutable="true">
+        <!-- 开始 -->
+        <startEvent id="startevent1" name="Start"></startEvent>
+
+        <!-- 用户任务 -->
+        <userTask id="usertask1" name="审批">
+            <!-- 由角色 deptLeader 处理-->
+            <potentialOwner>
+                <resourceAssignmentExpression>
+                    <formalExpression>deptLeader</formalExpression>
+                </resourceAssignmentExpression>
+            </potentialOwner>
+        </userTask>
+        <sequenceFlow id="flow1" sourceRef="startevent1" targetRef="usertask1"></sequenceFlow>
+
+        <!-- 脚本任务 -->
+        <!-- 由 groovy 处理 -->
+        <scriptTask id="scripttask1" name="输出审批结果" scriptFormat="groovy" activiti:autoStoreVariables="false">
+            <script><![CDATA[out:println "applyUser:"+applyUser+",days:"+days+",approval:"+approved;]]></script>
+        </scriptTask>
+        <sequenceFlow id="flow2" sourceRef="usertask1" targetRef="scripttask1"></sequenceFlow>
+        <endEvent id="endevent1" name="End"></endEvent>
+
+        <!-- 结束 -->
+        <sequenceFlow id="flow3" sourceRef="scripttask1" targetRef="endevent1"></sequenceFlow>
+    </process>
+</definitions>
