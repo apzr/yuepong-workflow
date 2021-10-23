@@ -5,9 +5,15 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
+import org.activiti.engine.ProcessEngine;
+import org.activiti.engine.ProcessEngines;
 import org.activiti.engine.RuntimeService;
+import org.activiti.engine.TaskService;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.runtime.ProcessInstanceQuery;
+import org.activiti.engine.task.Task;
+import org.activiti.engine.task.TaskQuery;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +34,9 @@ public class StartController {
 
     private final RuntimeService runtimeService;
 
+    @Autowired
+    private TaskService taskService;
+
     public StartController(RuntimeService runtimeService) {
         this.runtimeService = runtimeService;
     }
@@ -36,9 +45,11 @@ public class StartController {
     @ApiOperation(value = "根据流程key启动流程",notes = "每一个流程有对应的一个key这个是某一个流程内固定的写在bpmn内的")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "processKey",value = "流程key",dataType = "String",paramType = "query",example = ""),
+             @ApiImplicitParam(name = "businessKey",value = "业务key",dataType = "String",paramType = "query",example = ""),
             @ApiImplicitParam(name = "user",value = "启动流程的用户",dataType = "String",paramType = "query",example = "")
     })
     public RestMessgae start(@RequestParam("user") String userKey,
+                             @RequestParam("businessKey") String businessKey,
                              @RequestParam("processKey") String processKey) {
         HashMap<String, Object> variables=new HashMap<>(1);
         variables.put("userKey", userKey);
@@ -46,8 +57,7 @@ public class StartController {
         RestMessgae restMessgae = new RestMessgae();
         ProcessInstance instance = null;
         try {
-            instance = runtimeService
-                    .startProcessInstanceByKey(processKey, variables);
+            instance = runtimeService.startProcessInstanceByKey(processKey, businessKey, variables);
         } catch (Exception e) {
             restMessgae = RestMessgae.fail("启动失败", e.getMessage());
             e.printStackTrace();
@@ -62,6 +72,28 @@ public class StartController {
             result.put("processDefinitionKey", instance.getProcessDefinitionId());
             restMessgae = RestMessgae.success("启动成功", result);
         }
+        return restMessgae;
+    }
+
+    @PostMapping(path = "active")
+    @ApiOperation(value = "根据实例id激活启动的流程",notes = "")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "processInstanceId",value = "流程实例ID",dataType = "String",paramType = "query",example = ""),
+    })
+    public RestMessgae start(@RequestParam("processInstanceId") String processInstanceId) {
+//        HashMap<String, Object> variables=new HashMap<>(1);
+//        variables.put("userKey", userKey);
+
+        RestMessgae restMessgae = new RestMessgae();
+        ProcessInstance instance = null;
+        try {
+            runtimeService.activateProcessInstanceById(processInstanceId);
+            restMessgae = RestMessgae.success("激活成功", null);
+        } catch (Exception e) {
+            restMessgae = RestMessgae.fail("激活失败", e.getMessage());
+            e.printStackTrace();
+        }
+
         return restMessgae;
     }
 

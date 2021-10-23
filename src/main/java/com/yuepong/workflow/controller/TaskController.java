@@ -109,4 +109,26 @@ public class TaskController {
         restMessgae = RestMessgae.fail("提交成功", taskId);
         return restMessgae;
     }
+
+    @PostMapping(path = "createTask")
+    @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "processId", value = "流程ID", dataType = "String", paramType = "query", example = ""),
+    })
+    public RestMessgae createTask(@RequestParam("processId") String processId) {
+
+        RestMessgae restMessgae;
+        String taskId;
+
+        try {
+            Task task = taskService.newTask();//save
+        } catch (Exception e) {
+            restMessgae = RestMessgae.fail("创建失败", e.getMessage());
+            e.printStackTrace();
+            return restMessgae;
+        }
+
+        restMessgae = RestMessgae.fail("创建成功", null);
+        return restMessgae;
+    }
 }

@@ -109,7 +109,7 @@ public class DeployController {
             e.printStackTrace();
         }
 
-        /**级联删除：不管流程是否启动，都能可以删除（emmm大概是一锅端）*/
+        /**级联删除：不管流程是否启动，都能删除*/
 //        repositoryService.deleteDeployment(deploymentId, true);
         restMessgae = RestMessgae.success("删除成功", null);
         return  restMessgae;
