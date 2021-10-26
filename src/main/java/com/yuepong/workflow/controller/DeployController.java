@@ -1,33 +1,53 @@
 package com.yuepong.workflow.controller;
 
+import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.google.common.collect.Lists;
 import com.yuepong.jdev.api.bean.ResponseResult;
 import com.yuepong.jdev.code.CodeMsgs;
 import com.yuepong.jdev.exception.BizException;
+import com.yuepong.workflow.dto.DeploymentDTO;
 import com.yuepong.workflow.dto.ModelAttr;
 import com.yuepong.workflow.dto.ModelQueryParam;
+import com.yuepong.workflow.dto.SysFlow;
+import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.utils.BpmnConverterUtil;
 import com.yuepong.workflow.utils.RestMessgae;
 import com.yuepong.workflow.utils.Utils;
 import io.swagger.annotations.*;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
-import org.activiti.bpmn.model.BpmnModel;
-import org.activiti.bpmn.model.ExtensionAttribute;
+import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
+import org.activiti.engine.ProcessEngine;
+import org.activiti.engine.ProcessEngines;
 import org.activiti.engine.RepositoryService;
+import org.activiti.engine.impl.RepositoryServiceImpl;
+import org.activiti.engine.impl.context.Context;
+import org.activiti.engine.impl.persistence.deploy.DeploymentManager;
+import org.activiti.engine.impl.persistence.entity.DeploymentEntity;
+import org.activiti.engine.impl.persistence.entity.DeploymentEntityImpl;
+import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.activiti.engine.repository.Deployment;
 import org.activiti.engine.repository.DeploymentBuilder;
 import org.activiti.engine.repository.Model;
+import org.activiti.engine.repository.ProcessDefinition;
+import org.activiti.spring.process.ProcessExtensionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.InputStream;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -38,7 +58,12 @@ import java.util.zip.ZipInputStream;
 @Api(tags="部署流程、删除流程")
 public class DeployController {
 
+    ProcessEngine processEngine = ProcessEngines.getDefaultProcessEngine();
+
     private final RepositoryService repositoryService;
+
+    @Autowired
+    SysFlowMapper sysFlowMapper;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -256,4 +281,75 @@ public class DeployController {
 			return ResponseResult.error(ex.getMessage()).response();
 		}
 	}
+
+	@GetMapping("/model/process/list")
+    @ApiOperation(value = "查询部署列表",notes = "查询部署列表")
+    public ResponseEntity<?> processList(@RequestParam @Nullable Integer firstResult, @RequestParam @Nullable Integer maxResults) {
+        try {
+            if(firstResult==null && maxResults==null){
+                firstResult = 0;
+                maxResults=9999;
+            }
+
+            List<Deployment> deployments = repositoryService.createDeploymentQuery().listPage(firstResult, maxResults);
+            List<DeploymentDTO> deploymentDTOs = Lists.newArrayList();
+            deployments.stream().forEach(d -> {
+                DeploymentDTO dd = new DeploymentDTO(d.getId(), d.getName());
+                deploymentDTOs.add(dd);
+            });
+			return ResponseResult.success("请求成功", deploymentDTOs).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @GetMapping("/model/process/{process_id}/nodes")
+    @ApiOperation(value = "根据部署单条查询其所有Nodes",notes = "根据部署单条查询其所有Nodes")
+    public ResponseEntity<?> processListNodes(@PathVariable String process_id) {
+        try {
+            List<ProcessDefinition> list = processEngine.getRepositoryService()//与流程定义和部署对象相关的Service
+                    .createProcessDefinitionQuery()//创建一个流程定义查询
+                    /*指定查询条件,where条件*/
+                    .deploymentId(process_id)//使用部署对象ID查询
+                    //.processDefinitionId(processDefinitionId)//使用流程定义ID查询
+                    //.processDefinitionKey(processDefinitionKey)//使用流程定义的KEY查询
+                    //.processDefinitionNameLike(processDefinitionNameLike)//使用流程定义的名称模糊查询
+                    /*排序*/
+                    //.orderByProcessDefinitionVersion().asc()//按照版本的升序排列
+                    //.orderByProcessDefinitionName().desc()//按照流程定义的名称降序排列
+                    .list();//返回一个集合列表，封装流程定义
+                    //.singleResult();//返回唯一结果集
+                    //.count();//返回结果集数量
+                    //.listPage(firstResult, maxResults)//分页查询
+            String processDefinitionId = list.get(0).getId();
+            BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
+            Collection<FlowElement> flowElements = bpmnModel.getMainProcess().getFlowElements();
+            List<FlowElement> result = flowElements.stream().filter(flowElement -> flowElement instanceof ManualTask || flowElement instanceof ExclusiveGateway).collect(Collectors.toList());
+			return ResponseResult.success("请求成功", result).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+
+    }
+
+    @PostMapping("/model/apply")
+    @ApiOperation(value = "关联model和流程",notes = "根据流程id?和model id进行关联")
+    public ResponseEntity<?> applyModel() {
+        try {
+            LambdaQueryWrapper<SysFlow> queryWrapper = new LambdaQueryWrapper<>();
+            List<SysFlow> sysFlows = sysFlowMapper.testList();
+			return ResponseResult.success("请求成功", sysFlows).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
 }

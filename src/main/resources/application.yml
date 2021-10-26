@@ -1,3 +1,6 @@
+server:
+  port: 7777
+
 spring:
   #Activiti property configuration
   activiti:
@@ -47,6 +50,11 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %clr(-%5p)  %clr(${PID:- }){magenta} --- %clr([%15.15t]){faint} %highlight(%-80.80logger{300}){cyan} %clr(:) %m %n%wEx"
 
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*Mapper.xml
+  type-aliases-package: com.yuepong.workflow.dto
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 swagger:
   enabled: true

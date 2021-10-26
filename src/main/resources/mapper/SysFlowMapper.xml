@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.yuepong.workflow.mapper.SysFlowMapper">
+    <resultMap id="BaseResultMap" type="com.yuepong.workflow.dto.SysFlow">
+        <id column="id" property="id" jdbcType="VARCHAR"/>
+        <result column="sys_model" property="sys_model" jdbcType="VARCHAR"/>
+        <result column="sys_table" property="sys_table" jdbcType="VARCHAR"/>
+        <result column="flow_id" property="flow_id" jdbcType="VARCHAR"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, sys_model, sys_table, flow_id
+    </sql>
+
+    <select id="testList" resultType="com.yuepong.workflow.dto.SysFlow">
+        select id,sys_model,sys_table,flow_id from s_sys_flow_b limit 3
+    </select>
+
+</mapper>
