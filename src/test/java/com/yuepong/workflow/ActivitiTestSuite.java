@@ -4,8 +4,7 @@ import junit.framework.Test;
 import junit.framework.TestSuite;
 
 /**
- * @author : Alex Hu
- * date : 2020/3/24 下午15:51
+ * @author : Apr
  * description : TestSuite编排测试
  */
 

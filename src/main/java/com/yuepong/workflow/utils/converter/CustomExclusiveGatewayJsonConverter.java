@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 
 /**
- * @author yiyoung  2020/2/26.
+ * @author Apr
  */
 public class CustomExclusiveGatewayJsonConverter extends BaseBpmnJsonConverter {
     private static final Logger LOG = LoggerFactory.getLogger(CustomExclusiveGatewayJsonConverter.class);

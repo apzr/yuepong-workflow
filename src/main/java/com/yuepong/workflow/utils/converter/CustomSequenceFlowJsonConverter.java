@@ -1,10 +1,3 @@
-/*
- * Copyright 2015-2017 the original author or authors.
- * 东华软件-马鞍山金融事业部
- * 工作流引擎模块
- * 为内蒙农信资金系统需求定制开发
- */
-
 package com.yuepong.workflow.utils.converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,7 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 
 /**
- * @author Tao JinSong
+ * @author Apr
  */
 public class CustomSequenceFlowJsonConverter extends BaseBpmnJsonConverter {
     private static final Logger LOG = LoggerFactory.getLogger(CustomSequenceFlowJsonConverter.class);

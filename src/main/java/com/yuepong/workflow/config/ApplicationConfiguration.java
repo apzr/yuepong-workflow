@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * @author Alex Hu
+ * @author Apr
  */
 @Configuration
 public class ApplicationConfiguration extends WebSecurityConfigurerAdapter {

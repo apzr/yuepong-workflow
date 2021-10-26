@@ -24,7 +24,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
- * @Author yiyoung 2020/2/27
+ * @Author Apr
  * 用途： 用于解决流程编辑时反显xml和流程保存时xml不一致问题
  */
 public class CustomBpmnJsonConverter extends BpmnJsonConverter {

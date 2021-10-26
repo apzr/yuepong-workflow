@@ -19,8 +19,7 @@ import java.util.List;
  import java.util.Map;
 
 /**
- * @author : Alex Hu
- * date : 2020/3/24 下午14:05
+ * @author : Apr
  * description : 引擎测试，关键技术：WithMockUser模拟授权
  */
 @RunWith(SpringRunner.class)

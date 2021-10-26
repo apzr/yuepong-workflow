@@ -17,8 +17,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 /**
- * @author : Alex Hu
- * date : 2020/3/24 下午14:05
+ * @author : Apr
  * description : Controller测试，关键技术：WithMockUser模拟授权+MockMvc
  */
 @RunWith(SpringRunner.class)

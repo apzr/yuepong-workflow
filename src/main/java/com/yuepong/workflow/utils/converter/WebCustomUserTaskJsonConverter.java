@@ -30,8 +30,8 @@ import java.util.Map;
 
 
 /**
- * @author yiyoung 2020/02/27
- *         功能：用于解决流程编辑时反显xml和流程保存时xml不一致问题
+ * @author Apr
+ * @description 功能：用于解决流程编辑时反显xml和流程保存时xml不一致问题
  */
 public class WebCustomUserTaskJsonConverter extends BaseBpmnJsonConverter {
     private static final Logger LOG = LoggerFactory.getLogger(WebCustomUserTaskJsonConverter.class);

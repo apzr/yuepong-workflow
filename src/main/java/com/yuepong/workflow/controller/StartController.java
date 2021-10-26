@@ -13,8 +13,6 @@ import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.repository.ProcessDefinitionQuery;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.runtime.ProcessInstanceQuery;
-import org.activiti.engine.task.Task;
-import org.activiti.engine.task.TaskQuery;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,10 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.*;
 
 /**
- * @author Alex Hu
+ * @author Apr
  * @Description <p> 启动流程实例 </p>
  */
-
 @RestController
 @Api(tags="启动流程实例")
 public class StartController {

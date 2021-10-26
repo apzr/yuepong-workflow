@@ -16,8 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @Author yiyoung
- * @date 2020/3/12
+ * @Author Apr
  */
 public class CallActivityXMLConverter extends BaseBpmnXMLConverter {
     private static final Logger LOG = LoggerFactory.getLogger(CallActivityXMLConverter.class);

@@ -1,12 +1,5 @@
 package com.yuepong.workflow.config;
 
-/*
- * @author xugj<br>
- * @version 1.0<br>
- * @createDate 2019/05/30 14:51 <br>
- * @Description <p> </p>
- */
-
 import com.alibaba.druid.pool.DruidDataSource;
 import com.alibaba.druid.support.http.StatViewServlet;
 import com.alibaba.druid.support.http.WebStatFilter;
@@ -21,6 +14,10 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+/*
+ * @author Apr<br>
+ * @Description <p> </p>
+ */
 @Configuration
 public class DruidConfiguration {
     // 将所有前缀为spring.datasource下的配置项都加载到DataSource中
