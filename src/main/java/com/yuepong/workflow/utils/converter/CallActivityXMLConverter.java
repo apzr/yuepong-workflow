@@ -1,13 +1,9 @@
-package com.yuepong.workflow.utils;
+package com.yuepong.workflow.utils.converter;
 
 import org.activiti.bpmn.converter.BaseBpmnXMLConverter;
 import org.activiti.bpmn.converter.child.BaseChildElementParser;
 import org.activiti.bpmn.converter.util.BpmnXMLUtil;
-import org.activiti.bpmn.model.BaseElement;
-import org.activiti.bpmn.model.BpmnModel;
-import org.activiti.bpmn.model.CallActivity;
-import org.activiti.bpmn.model.ExtensionAttribute;
-import org.activiti.bpmn.model.IOParameter;
+import org.activiti.bpmn.model.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

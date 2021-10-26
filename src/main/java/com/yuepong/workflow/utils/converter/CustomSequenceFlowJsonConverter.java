@@ -5,18 +5,12 @@
  * 为内蒙农信资金系统需求定制开发
  */
 
-package com.yuepong.workflow.utils;
+package com.yuepong.workflow.utils.converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.activiti.bpmn.model.BaseElement;
-import org.activiti.bpmn.model.BpmnModel;
-import org.activiti.bpmn.model.ExtensionElement;
-import org.activiti.bpmn.model.FlowElement;
-import org.activiti.bpmn.model.FlowElementsContainer;
-import org.activiti.bpmn.model.GraphicInfo;
-import org.activiti.bpmn.model.SequenceFlow;
+import org.activiti.bpmn.model.*;
 import org.activiti.editor.language.json.converter.ActivityProcessor;
 import org.activiti.editor.language.json.converter.BaseBpmnJsonConverter;
 import org.activiti.editor.language.json.converter.BpmnJsonConverterUtil;

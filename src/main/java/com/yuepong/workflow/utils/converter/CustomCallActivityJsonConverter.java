@@ -10,25 +10,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.yuepong.workflow.utils;
+package com.yuepong.workflow.utils.converter;
 
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.activiti.bpmn.model.Activity;
-import org.activiti.bpmn.model.Artifact;
-import org.activiti.bpmn.model.BaseElement;
-import org.activiti.bpmn.model.BpmnModel;
-import org.activiti.bpmn.model.CallActivity;
-import org.activiti.bpmn.model.ExtensionAttribute;
-import org.activiti.bpmn.model.ExtensionElement;
-import org.activiti.bpmn.model.FlowElement;
-import org.activiti.bpmn.model.Gateway;
-import org.activiti.bpmn.model.IOParameter;
-import org.activiti.bpmn.model.Lane;
 import org.activiti.bpmn.model.Process;
-import org.activiti.bpmn.model.SequenceFlow;
-import org.activiti.bpmn.model.SubProcess;
+import org.activiti.bpmn.model.*;
 import org.activiti.editor.language.json.converter.ActivityProcessor;
 import org.activiti.editor.language.json.converter.BaseBpmnJsonConverter;
 import org.activiti.editor.language.json.converter.BpmnJsonConverterUtil;
@@ -41,26 +32,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author yiyoung
- * @date 20200312
+ * @author Tijs Rademakers
  */
-public class WebCustomCallActivityJsonConverter extends BaseBpmnJsonConverter {
-    private static final Logger LOG = LoggerFactory.getLogger(WebCustomCallActivityJsonConverter.class);
+public class CustomCallActivityJsonConverter extends BaseBpmnJsonConverter {
+    
+    private static final Logger LOG = LoggerFactory.getLogger(CustomCallActivityJsonConverter.class);
 
     public static void fillTypes(Map<String, Class<? extends BaseBpmnJsonConverter>> convertersToBpmnMap,
 
-                                 Map<Class<? extends BaseElement>, Class<? extends BaseBpmnJsonConverter>> convertersToJsonMap) {
+    Map<Class<? extends BaseElement>, Class<? extends BaseBpmnJsonConverter>> convertersToJsonMap) {
 
         fillJsonTypes(convertersToBpmnMap);
         fillBpmnTypes(convertersToJsonMap);
     }
 
     public static void fillJsonTypes(Map<String, Class<? extends BaseBpmnJsonConverter>> convertersToBpmnMap) {
-        convertersToBpmnMap.put(STENCIL_CALL_ACTIVITY, WebCustomCallActivityJsonConverter.class);
+        convertersToBpmnMap.put(STENCIL_CALL_ACTIVITY, CustomCallActivityJsonConverter.class);
     }
 
     public static void fillBpmnTypes(Map<Class<? extends BaseElement>, Class<? extends BaseBpmnJsonConverter>> convertersToJsonMap) {
-        convertersToJsonMap.put(CallActivity.class, WebCustomCallActivityJsonConverter.class);
+        convertersToJsonMap.put(CallActivity.class, CustomCallActivityJsonConverter.class);
     }
 
     @Override
@@ -76,7 +67,8 @@ public class WebCustomCallActivityJsonConverter extends BaseBpmnJsonConverter {
         if (baseElement instanceof FlowElement) {
             FlowElement flowElement = (FlowElement) baseElement;
             flowElement.setName(getPropertyValueAsString(PROPERTY_NAME, elementNode));
-            flowElement.setDocumentation(getPropertyValueAsString("documentation", elementNode));
+            // 获取documentation属性
+            flowElement.setDocumentation(getPropertyValueAsString(PROPERTY_DOCUMENTATION, elementNode));
 
             BpmnJsonConverterUtil.convertJsonToListeners(elementNode, flowElement);
 
@@ -84,7 +76,44 @@ public class WebCustomCallActivityJsonConverter extends BaseBpmnJsonConverter {
                 Activity activity = (Activity) baseElement;
                 activity.setAsynchronous(getPropertyValueAsBoolean(PROPERTY_ASYNCHRONOUS, elementNode));
                 activity.setNotExclusive(!getPropertyValueAsBoolean(PROPERTY_EXCLUSIVE, elementNode));
-                
+                // 多实列 注意看
+                String multiInstanceType = getPropertyValueAsString(PROPERTY_MULTIINSTANCE_TYPE, elementNode);
+                //String multiInstanceCardinality = getPropertyValueAsString(PROPERTY_MULTIINSTANCE_CARDINALITY, elementNode);
+                //String multiInstanceCollection = getPropertyValueAsString(PROPERTY_MULTIINSTANCE_COLLECTION, elementNode);
+                String multiInstanceCondition = getPropertyValueAsString(PROPERTY_MULTIINSTANCE_CONDITION, elementNode);
+
+                if (StringUtils.isNotEmpty(multiInstanceType) && !"none".equalsIgnoreCase(multiInstanceType)) {
+                    String name = getPropertyValueAsString(PROPERTY_NAME, elementNode);
+                    //String multiInstanceVariable = getPropertyValueAsString(PROPERTY_MULTIINSTANCE_VARIABLE, elementNode);
+
+                    MultiInstanceLoopCharacteristics multiInstanceObject = new MultiInstanceLoopCharacteristics();
+                    if ("sequential".equalsIgnoreCase(multiInstanceType)) {
+                        multiInstanceObject.setSequential(true);
+                    } else {
+                        multiInstanceObject.setSequential(false);
+                    }
+
+                    JsonNode collectionNode = getProperty(PROPERTY_MULTIINSTANCE_COLLECTION, elementNode);
+                    if (collectionNode != null) {
+                        if (collectionNode.isObject() && collectionNode.get("sqlId") != null && !collectionNode.get("sqlId").toString().equals("") && !collectionNode.get("sqlId").toString().equals("\"\"")) {
+                            multiInstanceObject.setInputDataItem("${nextProcessEvaluator.getMultiList(" + collectionNode.get("sqlId") + ",execution)}");
+                        } else {
+                            LOG.error(name + "配置成了多实例，但集合属性配置有误");
+                        }
+                    } else {
+                        LOG.error(name + "配置成了多实例，但没有配置集合属性");
+                    }
+                    if ("one".equalsIgnoreCase(multiInstanceCondition)) {
+                        multiInstanceObject.setCompletionCondition("${nrOfCompletedInstances==1}");
+                    } else {
+                        multiInstanceObject.setCompletionCondition("${nrOfCompletedInstances==nrOfInstances}");
+                    }
+
+                    // multiInstanceObject.setLoopCardinality(multiInstanceCardinality);
+                    multiInstanceObject.setElementVariable("nextProcess");
+                    activity.setLoopCharacteristics(multiInstanceObject);
+                }
+
             } else if (baseElement instanceof Gateway) {
                 // 网关流程顺序设置
                 JsonNode flowOrderNode = getProperty(PROPERTY_SEQUENCEFLOW_ORDER, elementNode);
@@ -138,38 +167,16 @@ public class WebCustomCallActivityJsonConverter extends BaseBpmnJsonConverter {
                 lane.getParentProcess().addArtifact(artifact);
             }
         }
-        
-        String calledElement = getPropertyValueAsString("calledElement", elementNode);
-        if(StringUtils.isNotEmpty(calledElement)) {
-            ExtensionAttribute extensionAttribute = new ExtensionAttribute();
-            extensionAttribute.setName("calledElement");
-            extensionAttribute.setValue(calledElement);
-            baseElement.addAttribute(extensionAttribute);
-        }
-        
-    
-        if (StringUtils.isNotEmpty(getPropertyValueAsString(PROPERTY_MULTIINSTANCE_CONDITION, elementNode))) {
-            ExtensionAttribute extensionAttribute4 = new ExtensionAttribute();
-            extensionAttribute4.setName("multiinstance_condition");
-            extensionAttribute4.setValue(getPropertyValueAsString(PROPERTY_MULTIINSTANCE_CONDITION, elementNode));
-            baseElement.addAttribute(extensionAttribute4);
-        }
-    
-    
-        if (StringUtils.isNotEmpty(getPropertyValueAsString(PROPERTY_MULTIINSTANCE_TYPE, elementNode))) {
-            ExtensionAttribute extensionAttribute = new ExtensionAttribute();
-            extensionAttribute.setName("multiinstance_type");
-            extensionAttribute.setValue(getPropertyValueAsString(PROPERTY_MULTIINSTANCE_TYPE, elementNode));
-            baseElement.addAttribute(extensionAttribute);
-        }
     }
 
     @Override
     protected void convertElementToJson(ObjectNode propertiesNode, BaseElement baseElement) {
+        // 保存流程图时用到
         CallActivity callActivity = (CallActivity) baseElement;
         if (StringUtils.isNotEmpty(callActivity.getCalledElement())) {
             propertiesNode.put("calledElement", callActivity.getCalledElement());
         }
+        
 
         addJsonParameters(PROPERTY_CALLACTIVITY_IN, "inParameters", callActivity.getInParameters(), propertiesNode);
         addJsonParameters(PROPERTY_CALLACTIVITY_OUT, "outParameters", callActivity.getOutParameters(), propertiesNode);
@@ -205,17 +212,33 @@ public class WebCustomCallActivityJsonConverter extends BaseBpmnJsonConverter {
 
     @Override
     protected FlowElement convertJsonToElement(JsonNode elementNode, JsonNode modelNode, Map<String, JsonNode> shapeMap) {
+        // 部署流程时会用到此处
         CallActivity callActivity = new CallActivity();
         String name = getPropertyValueAsString(PROPERTY_NAME, elementNode);
         if (StringUtils.isEmpty(name)) {
             LOG.error("节点名称不能为空");
         }
-    
-        String calledElement = getPropertyValueAsString("calledElement", elementNode);
-        if(StringUtils.isNotEmpty(calledElement)) {
-            callActivity.setCalledElement(calledElement);
+        String atomCategory = getPropertyValueAsString(PROPERTY_DOCUMENTATION, elementNode);
+        if (StringUtils.isEmpty(atomCategory)) {
+            LOG.error(name + "的文档属性值被清空了");
         }
+    
+        JSONObject callElementNode = JSON.parseObject(getPropertyValueAsString("calledElement", elementNode));
         
+        if (callElementNode != null) {
+            if (callElementNode.get("sqlId") != null && !callElementNode.get("sqlId").toString().equals("") && !callElementNode.get("sqlId").toString().equals("\"\"")) {
+                if (callElementNode.get("type") != null && (callElementNode.get("type").toString().equals("tenantId") || callElementNode.get("type").toString().equals("\"tenantId\""))) {
+                    callActivity.setCalledElement("${nextProcessEvaluator.returnTenantProcessDefinitionToCall(\"" + callElementNode.get("sqlId") + "\",\"" + atomCategory + "\",execution)}");
+                } else {
+                    callActivity.setCalledElement("${nextProcessEvaluator.returnSqlProcessDefinitionToCall(\"" + callElementNode.get("sqlId") + "\",\"" + atomCategory + "\",execution)}");
+                }
+
+            } else {
+                callActivity.setCalledElement("${nextProcessEvaluator.returnDefaultProcessDefinitionToCall(\"" + atomCategory + "\",execution)}");
+            }
+        } else {
+            callActivity.setCalledElement("${nextProcessEvaluator.returnDefaultProcessDefinitionToCall(\"" + atomCategory + "\",execution)}");
+        }
 
         callActivity.getInParameters().addAll(convertToIOParameters(PROPERTY_CALLACTIVITY_IN, "inParameters", elementNode));
         callActivity.getOutParameters().addAll(convertToIOParameters(PROPERTY_CALLACTIVITY_OUT, "outParameters", elementNode));

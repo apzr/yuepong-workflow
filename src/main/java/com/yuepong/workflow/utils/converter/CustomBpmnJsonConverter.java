@@ -1,16 +1,4 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-package com.yuepong.workflow.utils;
+package com.yuepong.workflow.utils.converter;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,58 +9,9 @@ import math.geom2d.conic.Circle2D;
 import math.geom2d.curve.AbstractContinuousCurve2D;
 import math.geom2d.line.Line2D;
 import math.geom2d.polygon.Polyline2D;
-import org.activiti.bpmn.model.Activity;
-import org.activiti.bpmn.model.Artifact;
-import org.activiti.bpmn.model.BaseElement;
-import org.activiti.bpmn.model.BoundaryEvent;
-import org.activiti.bpmn.model.BpmnModel;
-import org.activiti.bpmn.model.Event;
-import org.activiti.bpmn.model.EventDefinition;
-import org.activiti.bpmn.model.ExtensionElement;
-import org.activiti.bpmn.model.FlowElement;
-import org.activiti.bpmn.model.FlowElementsContainer;
-import org.activiti.bpmn.model.FlowNode;
-import org.activiti.bpmn.model.Gateway;
-import org.activiti.bpmn.model.GraphicInfo;
-import org.activiti.bpmn.model.Lane;
-import org.activiti.bpmn.model.Message;
-import org.activiti.bpmn.model.MessageEventDefinition;
-import org.activiti.bpmn.model.MessageFlow;
-import org.activiti.bpmn.model.Pool;
 import org.activiti.bpmn.model.Process;
-import org.activiti.bpmn.model.SequenceFlow;
-import org.activiti.bpmn.model.Signal;
-import org.activiti.bpmn.model.SignalEventDefinition;
-import org.activiti.bpmn.model.SubProcess;
-import org.activiti.bpmn.model.ValuedDataObject;
-import org.activiti.editor.constants.EditorJsonConstants;
-import org.activiti.editor.constants.StencilConstants;
-import org.activiti.editor.language.json.converter.ActivityProcessor;
-import org.activiti.editor.language.json.converter.AssociationJsonConverter;
-import org.activiti.editor.language.json.converter.BaseBpmnJsonConverter;
-import org.activiti.editor.language.json.converter.BoundaryEventJsonConverter;
-import org.activiti.editor.language.json.converter.BpmnJsonConverterUtil;
-import org.activiti.editor.language.json.converter.BusinessRuleTaskJsonConverter;
-import org.activiti.editor.language.json.converter.CamelTaskJsonConverter;
-import org.activiti.editor.language.json.converter.CatchEventJsonConverter;
-import org.activiti.editor.language.json.converter.DataStoreJsonConverter;
-import org.activiti.editor.language.json.converter.EndEventJsonConverter;
-import org.activiti.editor.language.json.converter.EventGatewayJsonConverter;
-import org.activiti.editor.language.json.converter.EventSubProcessJsonConverter;
-import org.activiti.editor.language.json.converter.InclusiveGatewayJsonConverter;
-import org.activiti.editor.language.json.converter.MailTaskJsonConverter;
-import org.activiti.editor.language.json.converter.ManualTaskJsonConverter;
-import org.activiti.editor.language.json.converter.MessageFlowJsonConverter;
-import org.activiti.editor.language.json.converter.MuleTaskJsonConverter;
-import org.activiti.editor.language.json.converter.ParallelGatewayJsonConverter;
-import org.activiti.editor.language.json.converter.ReceiveTaskJsonConverter;
-import org.activiti.editor.language.json.converter.ScriptTaskJsonConverter;
-import org.activiti.editor.language.json.converter.SendTaskJsonConverter;
-import org.activiti.editor.language.json.converter.ServiceTaskJsonConverter;
-import org.activiti.editor.language.json.converter.StartEventJsonConverter;
-import org.activiti.editor.language.json.converter.SubProcessJsonConverter;
-import org.activiti.editor.language.json.converter.TextAnnotationJsonConverter;
-import org.activiti.editor.language.json.converter.ThrowEventJsonConverter;
+import org.activiti.bpmn.model.*;
+import org.activiti.editor.language.json.converter.*;
 import org.activiti.editor.language.json.converter.util.CollectionUtils;
 import org.activiti.editor.language.json.converter.util.JsonConverterUtil;
 import org.activiti.editor.language.json.model.ModelInfo;
@@ -82,27 +21,22 @@ import org.slf4j.LoggerFactory;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
- * @author Tijs Rademakers
+ * @Author yiyoung 2020/2/27
+ * 用途： 用于解决流程编辑时反显xml和流程保存时xml不一致问题
  */
-public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants, ActivityProcessor {
+public class CustomBpmnJsonConverter extends BpmnJsonConverter {
     public static final String MODELER_NAMESPACE = "http://activiti.com/modeler";
     protected static final DateFormat DEFAULTFORMAT = new SimpleDateFormat("yyyyMMddHHmmss");
     protected static final DateFormat ENTFORMAT = new SimpleDateFormat("yyyyMMddHHmmssSSS");
-    private static final Logger LOG = LoggerFactory.getLogger(BpmnJsonConverter.class);
+    private static final Logger LOG = LoggerFactory.getLogger(CustomBpmnJsonConverter.class);
     private static final List<String> DI_CIRCLES = new ArrayList<String>();
     private static final List<String> DI_RECTANGLES = new ArrayList<String>();
     private static final List<String> DI_GATEWAY = new ArrayList<String>();
     protected static Map<Class<? extends BaseElement>, Class<? extends BaseBpmnJsonConverter>> convertersToJsonMap = new HashMap<Class<? extends BaseElement>, Class<? extends BaseBpmnJsonConverter>>();
     protected static Map<String, Class<? extends BaseBpmnJsonConverter>> convertersToBpmnMap = new HashMap<String, Class<? extends BaseBpmnJsonConverter>>();
-
 
     static {
         // start and end events
@@ -121,8 +55,8 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
         ReceiveTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
         ScriptTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
         ServiceTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
-        CustomUserTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
-        CustomCallActivityJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
+        WebCustomUserTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
+        WebCustomCallActivityJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
         CamelTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
         MuleTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
         SendTaskJsonConverter.fillTypes(convertersToBpmnMap, convertersToJsonMap);
@@ -199,7 +133,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
     }
 
     protected ObjectMapper objectMapper = new ObjectMapper();
-
+    @Override
     public ObjectNode convertToJson(BpmnModel model) {
         ObjectNode modelNode = objectMapper.createObjectNode();
         double maxX = 0.0;
@@ -424,6 +358,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
         return modelNode;
     }
 
+    @Override
     protected void processFlowElement(FlowElement flowElement, FlowElementsContainer container, BpmnModel model, ArrayNode shapesArrayNode, double containerX, double containerY) {
         Class<? extends BaseBpmnJsonConverter> converter = convertersToJsonMap.get(flowElement.getClass());
 
@@ -437,6 +372,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
         }
     }
 
+    @Override
     protected void processArtifacts(FlowElementsContainer container, BpmnModel model, ArrayNode shapesArrayNode, double containerX, double containerY) {
         for (Artifact artifact : container.getArtifacts()) {
             Class<? extends BaseBpmnJsonConverter> converter = convertersToJsonMap.get(artifact.getClass());
@@ -452,6 +388,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
         }
     }
 
+    @Override
     protected void processMessageFlows(BpmnModel model, ArrayNode shapesArrayNode) {
         for (MessageFlow messageFlow : model.getMessageFlows().values()) {
             MessageFlowJsonConverter jsonConverter = new MessageFlowJsonConverter();
@@ -484,6 +421,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
         }
     }
 
+    @Override
     public BpmnModel convertToBpmnModel(JsonNode modelNode) {
         BpmnModel bpmnModel = new BpmnModel();
         bpmnModel.setTargetNamespace("http://activiti.org/test");
@@ -585,6 +523,20 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
 
             if (StringUtils.isNotEmpty(namespace)) {
                 bpmnModel.setTargetNamespace(namespace);
+                // 设置属性process_namespace
+                ExtensionAttribute extensionElement1 = new ExtensionAttribute();
+                extensionElement1.setName("process_namespace");
+                extensionElement1.setValue(namespace);
+                process.addAttribute(extensionElement1);
+            }
+
+            String processId = BpmnJsonConverterUtil.getPropertyValueAsString(PROPERTY_PROCESS_ID, modelNode);
+            if(StringUtils.isNotEmpty(processId)) {
+                // 设置属性process_id
+                ExtensionAttribute extensionElement1 = new ExtensionAttribute();
+                extensionElement1.setName("process_id");
+                extensionElement1.setValue(namespace);
+                process.addAttribute(extensionElement1);
             }
 
             process.setDocumentation(BpmnJsonConverterUtil.getPropertyValueAsString(PROPERTY_DOCUMENTATION, modelNode));
@@ -668,7 +620,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
             }
         }
 
-        Map<String, FlowWithContainer> allFlowMap = new HashMap<String, FlowWithContainer>();
+        Map<String, BpmnJsonConverter.FlowWithContainer> allFlowMap = new HashMap<String, BpmnJsonConverter.FlowWithContainer>();
         List<Gateway> gatewayWithOrderList = new ArrayList<Gateway>();
 
         // post handling of process elements
@@ -686,7 +638,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
 
                     if (StringUtils.isNotEmpty(flowValue)) {
                         if (allFlowMap.containsKey(flowValue)) {
-                            FlowWithContainer flowWithContainer = allFlowMap.get(flowValue);
+                            BpmnJsonConverter.FlowWithContainer flowWithContainer = allFlowMap.get(flowValue);
                             flowWithContainer.getFlowContainer().removeFlowElement(flowWithContainer.getSequenceFlow().getId());
                             flowWithContainer.getFlowContainer().addFlowElement(flowWithContainer.getSequenceFlow());
                         }
@@ -714,7 +666,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
     private void postProcessElements(FlowElementsContainer parentContainer,
                                      Collection<FlowElement> flowElementList,
                                      Map<String, JsonNode> edgeMap, BpmnModel bpmnModel,
-                                     Map<String, FlowWithContainer> allFlowMap,
+                                     Map<String, BpmnJsonConverter.FlowWithContainer> allFlowMap,
                                      List<Gateway> gatewayWithOrderList) {
         for (FlowElement flowElement : flowElementList) {
             if (flowElement instanceof Event) {
@@ -765,7 +717,7 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
                 FlowElement sourceFlowElement = parentContainer.getFlowElement(sequenceFlow.getSourceRef());
 
                 if ((sourceFlowElement != null) && sourceFlowElement instanceof FlowNode) {
-                    FlowWithContainer flowWithContainer = new FlowWithContainer(sequenceFlow, parentContainer);
+                    BpmnJsonConverter.FlowWithContainer flowWithContainer = new BpmnJsonConverter.FlowWithContainer(sequenceFlow, parentContainer);
 
                     if ((sequenceFlow.getExtensionElements().get("EDITOR_RESOURCEID") != null) && (sequenceFlow.getExtensionElements().get("EDITOR_RESOURCEID").size() > 0)) {
                         allFlowMap.put(sequenceFlow.getExtensionElements().get("EDITOR_RESOURCEID").get(0).getElementText(), flowWithContainer);
@@ -1058,24 +1010,24 @@ public class BpmnJsonConverter implements EditorJsonConstants, StencilConstants,
     class FlowWithContainer {
         protected SequenceFlow sequenceFlow;
         protected FlowElementsContainer flowContainer;
-        
+
         FlowWithContainer(SequenceFlow sequenceFlow, FlowElementsContainer flowContainer) {
             this.sequenceFlow = sequenceFlow;
             this.flowContainer = flowContainer;
         }
-        
+
         public SequenceFlow getSequenceFlow() {
             return sequenceFlow;
         }
-        
+
         public void setSequenceFlow(SequenceFlow sequenceFlow) {
             this.sequenceFlow = sequenceFlow;
         }
-        
+
         public FlowElementsContainer getFlowContainer() {
             return flowContainer;
         }
-        
+
         public void setFlowContainer(FlowElementsContainer flowContainer) {
             this.flowContainer = flowContainer;
         }

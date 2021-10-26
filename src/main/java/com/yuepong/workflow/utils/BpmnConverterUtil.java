@@ -2,6 +2,10 @@ package com.yuepong.workflow.utils;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yuepong.workflow.utils.converter.BpmnJsonConverter;
+import com.yuepong.workflow.utils.converter.CallActivityXMLConverter;
+import com.yuepong.workflow.utils.converter.CustomBpmnJsonConverter;
+import com.yuepong.workflow.utils.converter.UserTaskXMLConverter;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
 import org.activiti.bpmn.model.BpmnModel;
 

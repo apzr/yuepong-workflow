@@ -12,9 +12,12 @@ import com.yuepong.workflow.dto.ModelAttr;
 import com.yuepong.workflow.dto.ModelQueryParam;
 import com.yuepong.workflow.utils.BpmnConverterUtil;
 import com.yuepong.workflow.utils.RestMessgae;
+import com.yuepong.workflow.utils.Utils;
 import io.swagger.annotations.*;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
 import org.activiti.bpmn.model.BpmnModel;
+import org.activiti.bpmn.model.ExtensionAttribute;
+import org.activiti.bpmn.model.Process;
 import org.activiti.editor.constants.ModelDataJsonConstants;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.ActivitiException;
@@ -34,10 +37,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -148,18 +148,34 @@ public class DeployController {
     @ApiOperation(value = "根据ID查询model",notes = "根据ID查询model")
     public ResponseEntity<?> getModel(@RequestBody ModelQueryParam modelQueryParam) {
         try {
-//            ModelQuery query = repositoryService.createModelQuery().modelId(modelQueryParam.getId());
-//            Model model = query.singleResult();
             byte[] bpmnBytes = repositoryService.getModelEditorSource(modelQueryParam.getId());
             if(null == bpmnBytes) {
                 throw new BizException("模型数据为空");
             }
             JsonNode modelNode = objectMapper.readTree(bpmnBytes);
             BpmnModel bpmnModel = new BpmnJsonConverter().convertToBpmnModel(modelNode);
+
+            //type
+            ExtensionAttribute category = new ExtensionAttribute();
+            category.setName("processCategory");
+            category.setNamespace("http://flowable.org/bpmn");
+            category.setNamespacePrefix("flowable");
+            String type = modelNode.get("properties").get("processCategory").toString();
+            category.setValue( type.replaceAll("^\"","").replaceAll("\"$","")  );
+
+            Process mainProcess;
+            if (bpmnModel.getPools().size() > 0) {
+                mainProcess = bpmnModel.getProcess(bpmnModel.getPools().get(0).getId());
+            } else {
+                mainProcess = bpmnModel.getMainProcess();
+            }
+            mainProcess.addAttribute(category);
+
             byte[] bpmnXml = new BpmnXMLConverter().convertToXML(bpmnModel);
 
             String bpmnString = new String(bpmnXml);
             String bpmnText = bpmnString.replaceAll("\\r|\\n","");
+
 			return ResponseResult.success("请求成功", bpmnText).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
@@ -169,90 +185,43 @@ public class DeployController {
     }
 
     @PostMapping(value = "/model/{modelId}/xml/save")
-    public RestMessgae saveModelXml(@PathVariable String modelId, @RequestBody ModelAttr modelAttr) {
-        RestMessgae restMessgae;
+    public ResponseEntity<?>  saveModelXml(@PathVariable String modelId, @RequestBody ModelAttr modelAttr) {
         try {
-            if(Objects.nonNull(modelId)){//编辑
-                //初始化一个空模型
-                Model model = repositoryService.getModel(modelId);
-                if(Objects.isNull(model))
-                    throw new BizException("没有找到模型");
+            //bpmn
+            String xml = modelAttr.getBpmn_xml();
+            String jsonBpmnXml = BpmnConverterUtil.converterXmlToJson(xml).toString();
 
-                String xml = modelAttr.getBpmn_xml();
-                String svg = modelAttr.getSvg_xml();
+            //svg
+            String svg = modelAttr.getSvg_xml();
 
-                String bpmnXml = BpmnConverterUtil.converterXmlToJson(xml).toString();
-
-                JSONObject jsonObject = JSONObject.parseObject(bpmnXml);
-                JSONObject properties = jsonObject.getJSONObject("properties");
-                String modelName = properties.getString("name");
-                String modelKey = properties.getString("process_id");
-                String modelCategory = properties.getString("processCategory")==null?properties.getString("processCategory"):"default_category";;
-                String modelDescription = properties.getString("documentation");
-                int revision = 1;//TODO:版本+1
-
-
-                model.setName(modelName);
-                model.setKey(modelKey);
-                model.setCategory(modelCategory);
-
-                ObjectNode modelNode = objectMapper.createObjectNode();
-                modelNode.put(ModelDataJsonConstants.MODEL_NAME,modelName);
-                modelNode.put(ModelDataJsonConstants.MODEL_DESCRIPTION, modelDescription);
-                modelNode.put(ModelDataJsonConstants.MODEL_REVISION, revision);
-                model.setMetaInfo(modelNode.toString());
-
-                repositoryService.saveModel(model);
-
-                //repositoryService.createModelQuery().
-                repositoryService.addModelEditorSource(model.getId(), bpmnXml.getBytes("utf-8"));
-                repositoryService.addModelEditorSourceExtra(model.getId(), svg.getBytes("utf-8"));
-            }else{//新增
-                String xml = modelAttr.getBpmn_xml();
-                String svg = modelAttr.getSvg_xml();
-
-                String bpmnXml = BpmnConverterUtil.converterXmlToJson(xml).toString();
-
-                JSONObject jsonObject = JSONObject.parseObject(bpmnXml);
-                JSONObject properties = jsonObject.getJSONObject("properties");
-                String modelName = properties.getString("name");
-                String modelKey = properties.getString("process_id");
-                String modelCategory = properties.getString("processCategory")==null?properties.getString("processCategory"):"default_category";;
-                String modelDescription = properties.getString("documentation");
-                int revision = 1;
-
-                //初始化一个空模型
-                Model model = repositoryService.newModel();
-                model.setName(modelName);
-                model.setKey(modelKey);
-                model.setCategory(modelCategory);
-
-                ObjectNode modelNode = objectMapper.createObjectNode();
-                modelNode.put(ModelDataJsonConstants.MODEL_NAME,modelName);
-                modelNode.put(ModelDataJsonConstants.MODEL_DESCRIPTION, modelDescription);
-                modelNode.put(ModelDataJsonConstants.MODEL_REVISION, revision);
-                model.setMetaInfo(modelNode.toString());
-
-                repositoryService.saveModel(model);
-
-                //repositoryService.createModelQuery().
-                repositoryService.addModelEditorSource(model.getId(), bpmnXml.getBytes("utf-8"));
-                repositoryService.addModelEditorSourceExtra(model.getId(), svg.getBytes("utf-8"));
+            //model
+            Model model;
+            if("-1".equals(modelId)){
+                model = repositoryService.newModel();
+            }else{
+                model = repositoryService.getModel(modelId);
+                model.setVersion(model.getVersion()+1);
             }
+            Utils.initModel(model, jsonBpmnXml, objectMapper);
 
+            //db
+            repositoryService.saveModel(model);
+            repositoryService.addModelEditorSource(model.getId(), jsonBpmnXml.getBytes("utf-8"));
+            repositoryService.addModelEditorSourceExtra(model.getId(), svg.getBytes("utf-8"));
 
-            restMessgae = RestMessgae.success("操作成功", null);
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("操作失败", e.getMessage());
-        }
-
-        return  restMessgae;
+			return ResponseResult.success("请求成功", modelId).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), modelId).response();
+		} catch (Exception ex) {
+			return ResponseResult.error(ex.getMessage()).response();
+		}
     }
 
     @GetMapping("/model/list/{firstResult}/{maxResults}")
 	public ResponseEntity<?> listModel(@PathVariable int firstResult, @PathVariable int maxResults) {
 		try {
             List<Model> models = repositoryService.createModelQuery().listPage(firstResult, maxResults);
+
 			return ResponseResult.success("请求成功", models).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();

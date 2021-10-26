@@ -1,28 +1,17 @@
-package com.yuepong.workflow.utils;
+package com.yuepong.workflow.utils.converter;
 
 import org.activiti.bpmn.converter.BaseBpmnXMLConverter;
 import org.activiti.bpmn.converter.XMLStreamReaderUtil;
 import org.activiti.bpmn.converter.child.BaseChildElementParser;
 import org.activiti.bpmn.converter.util.BpmnXMLUtil;
 import org.activiti.bpmn.converter.util.CommaSplitter;
-import org.activiti.bpmn.model.BaseElement;
-import org.activiti.bpmn.model.BpmnModel;
-import org.activiti.bpmn.model.CustomProperty;
-import org.activiti.bpmn.model.ExtensionAttribute;
-import org.activiti.bpmn.model.Resource;
-import org.activiti.bpmn.model.UserTask;
+import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.alfresco.AlfrescoUserTask;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class UserTaskXMLConverter extends BaseBpmnXMLConverter {
     
