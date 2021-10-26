@@ -58,12 +58,50 @@ public class DeployController {
         this.repositoryService = repositoryService;
     }
 
-    @PostMapping(path = "deploy")
+    @GetMapping(path = "/model/deploy/{modelId}")
     @ApiOperation(value = "根据bpmnName部署流程",notes = "根据bpmnName部署流程，需要bpmn/png两个文件")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "bpmnName",value = "设计的流程图名称",dataType = "String",paramType = "query",example = "myProcess")
     })
-    public RestMessgae deploy(@RequestParam("bpmnName") String bpmnName){
+    public ResponseEntity<?> deploy(@PathVariable String modelId){
+		try {
+            // 获取模型
+            Model modelData = repositoryService.getModel(modelId);
+            byte[] bytes = repositoryService.getModelEditorSource(modelData.getId());
+            if(null == bytes) {
+                throw new BizException("模型数据为空，请先设计流程并成功保存，再进行发布。");
+            }
+            JsonNode modelNode = objectMapper.readTree(bytes);
+            BpmnModel model = new BpmnJsonConverter().convertToBpmnModel(modelNode);
+            if (model.getProcesses().size() == 0){
+                throw new BizException("数据模型不符合要求，请至少设计一条主线程流。");
+            }
+            byte[] bpmnBytes = new BpmnXMLConverter().convertToXML(model);
+
+            //发布流程
+            String processName = modelData.getName() + ".bpmn20.xml";
+            Deployment deployment = repositoryService
+                    .createDeployment()
+                    .name(modelData.getName())
+                    .addString(processName, new String(bpmnBytes, "UTF-8"))
+                    .deploy();
+            modelData.setDeploymentId(deployment.getId());
+            repositoryService.saveModel(modelData);
+
+			return ResponseResult.success("请求成功", modelId).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+	}
+
+    @PostMapping(path = "deployBpmn")
+    @ApiOperation(value = "根据bpmnName部署流程",notes = "根据bpmnName部署流程，需要bpmn/png两个文件")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "bpmnName",value = "设计的流程图名称",dataType = "String",paramType = "query",example = "myProcess")
+    })
+    public RestMessgae deployBpmn(@RequestParam("bpmnName") String bpmnName){
 
         RestMessgae restMessgae = new RestMessgae();
         //创建一个部署对象
