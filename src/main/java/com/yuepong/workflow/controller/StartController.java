@@ -5,10 +5,12 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
-import org.activiti.engine.ProcessEngine;
-import org.activiti.engine.ProcessEngines;
-import org.activiti.engine.RuntimeService;
-import org.activiti.engine.TaskService;
+import org.activiti.bpmn.model.BpmnModel;
+import org.activiti.bpmn.model.FlowElement;
+import org.activiti.bpmn.model.Process;
+import org.activiti.engine.*;
+import org.activiti.engine.repository.ProcessDefinition;
+import org.activiti.engine.repository.ProcessDefinitionQuery;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.runtime.ProcessInstanceQuery;
 import org.activiti.engine.task.Task;
@@ -18,10 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @author Alex Hu
@@ -33,6 +32,9 @@ import java.util.Map;
 public class StartController {
 
     private final RuntimeService runtimeService;
+
+    @Autowired
+    RepositoryService repositoryService;
 
     @Autowired
     private TaskService taskService;
@@ -75,23 +77,37 @@ public class StartController {
         return restMessgae;
     }
 
-    @PostMapping(path = "active")
-    @ApiOperation(value = "根据实例id激活启动的流程",notes = "")
+    @PostMapping(path = "suspend")
+    @ApiOperation(value = "根据实例id挂起流程",notes = "")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "processInstanceId",value = "流程实例ID",dataType = "String",paramType = "query",example = ""),
     })
-    public RestMessgae start(@RequestParam("processInstanceId") String processInstanceId) {
-//        HashMap<String, Object> variables=new HashMap<>(1);
-//        variables.put("userKey", userKey);
+    public RestMessgae suspend(@RequestParam("processInstanceId") String processInstanceId) {
+        RestMessgae restMessgae;
 
-        RestMessgae restMessgae = new RestMessgae();
-        ProcessInstance instance = null;
+        try {
+            runtimeService.suspendProcessInstanceById(processInstanceId);
+            restMessgae = RestMessgae.success("挂起成功", null);
+        } catch (Exception e) {
+            restMessgae = RestMessgae.fail("挂起失败", e.getMessage());
+        }
+
+        return restMessgae;
+    }
+
+    @PostMapping(path = "active")
+    @ApiOperation(value = "根据实例id激活**挂起**的流程",notes = "")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "processInstanceId",value = "流程实例ID",dataType = "String",paramType = "query",example = ""),
+    })
+    public RestMessgae active(@RequestParam("processInstanceId") String processInstanceId) {
+        RestMessgae restMessgae;
+
         try {
             runtimeService.activateProcessInstanceById(processInstanceId);
             restMessgae = RestMessgae.success("激活成功", null);
         } catch (Exception e) {
             restMessgae = RestMessgae.fail("激活失败", e.getMessage());
-            e.printStackTrace();
         }
 
         return restMessgae;
@@ -131,6 +147,32 @@ public class StartController {
         return restMessgae;
     }
 
+    @PostMapping(path = "searchNodeByKey")
+    @ApiOperation(value = "根据流程key查询流程节点",notes = "查询流程节点")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "processKey",value = "流程key",dataType = "String",paramType = "query",example = "process_1f6t06j5"),
+    })
+    public RestMessgae searchProcessInstanceNode(@RequestParam("processKey") String processDefinitionKey){
+        RestMessgae restMessgae = new RestMessgae();
+        List<ProcessInstance> runningList = new ArrayList<>();
+        try {
+            ProcessDefinitionQuery processDefinitionList = repositoryService.createProcessDefinitionQuery().processDefinitionKey(processDefinitionKey).latestVersion();
+            ProcessDefinition processDefinition = processDefinitionList.list().get(0);
+            //流程定义id
+            String processDefinitionId = processDefinition.getId();
+            BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
+            Process process = bpmnModel.getProcesses().get(0);
+            //获取所有节点
+            Collection<FlowElement> flowElements = process.getFlowElements();
+
+            restMessgae = RestMessgae.success("查询成功", flowElements);
+        } catch (Exception e) {
+            restMessgae = RestMessgae.fail("查询失败", e.getMessage());
+            e.printStackTrace();
+        }
+
+        return restMessgae;
+    }
 
     @PostMapping(path = "searchByID")
     @ApiOperation(value = "根据流程key查询流程实例",notes = "查询流程实例")

@@ -118,17 +118,19 @@ public class TaskController {
     public RestMessgae createTask(@RequestParam("processId") String processId) {
 
         RestMessgae restMessgae;
-        String taskId;
+        String taskId = "task_"+processId;
 
         try {
-            Task task = taskService.newTask();//save
+            Task task = taskService.newTask(taskId);
+            //TODO: task信息以及关联信息的完善
+            taskService.saveTask(task);
         } catch (Exception e) {
             restMessgae = RestMessgae.fail("创建失败", e.getMessage());
             e.printStackTrace();
             return restMessgae;
         }
 
-        restMessgae = RestMessgae.fail("创建成功", null);
+        restMessgae = RestMessgae.success("创建成功", null);
         return restMessgae;
     }
 }
