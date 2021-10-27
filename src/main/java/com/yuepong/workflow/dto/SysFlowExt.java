@@ -35,7 +35,7 @@ public class SysFlowExt {
     /*
      * 业务变量
      */
-    private String filed;
+    private String field;
     /*
      * 条件
      */
@@ -53,11 +53,11 @@ public class SysFlowExt {
 
     }
 
-    public SysFlowExt(String hId, String node, String type,String filed, String conditions, String value, String nextNode){
+    public SysFlowExt(String hId, String node, String type,String field, String conditions, String value, String nextNode){
         this.hId = hId;
         this.node = node;
         this.type = type;
-        this.filed = filed;
+        this.field = field;
         this.conditions = conditions;
         this.value = value;
         this.nextNode = nextNode;

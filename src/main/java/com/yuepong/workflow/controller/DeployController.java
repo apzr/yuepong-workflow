@@ -324,8 +324,11 @@ public class DeployController {
 
     @PostMapping("/model/apply")
     @ApiOperation(value = "关联流程和业务节点", notes = "不用传id和关联id")
-    public ResponseEntity<?> applyModel(@RequestBody SysFlow flow, @RequestBody List<SysFlowExt> nodes) {
+    public ResponseEntity<?> applyModel(@RequestBody SysInfo sysInfo) {
         try {
+            SysFlow flow = sysInfo.getFlow();
+            List<SysFlowExt> nodes = sysInfo.getNodes();
+
             String flowId = UUID.randomUUID().toString();
             flow.setId(flowId);
             sysFlowMapper.insert(flow);
@@ -337,7 +340,7 @@ public class DeployController {
                 sysFlowExtMapper.insert(node);
             });
 
-            return ResponseResult.success("请求成功", null).response();
+            return ResponseResult.success("请求成功", flowId).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
