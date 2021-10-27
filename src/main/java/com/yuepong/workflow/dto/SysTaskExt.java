@@ -14,7 +14,6 @@ import lombok.Data;
 @Data
 @TableName("s_sys_task_b")
 public class SysTaskExt {
-    private static final long serialVersionUID = 1L;
     /*
      * uuid
      */
@@ -23,7 +22,7 @@ public class SysTaskExt {
     /*
      * 主表id
      */
-	private String h_id;
+	private String hId;
 	/*
      * 流程节点(发起人为开始节点)
      */

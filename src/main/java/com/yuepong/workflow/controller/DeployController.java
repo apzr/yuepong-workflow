@@ -31,6 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.InputStream;
@@ -42,6 +43,7 @@ import java.util.zip.ZipInputStream;
 /**
  * @author Apr
  */
+@Transactional
 @Controller
 @Api(tags="部署流程、删除流程")
 public class DeployController {
@@ -295,21 +297,7 @@ public class DeployController {
     @ApiOperation(value = "根据部署单条查询其所有Nodes",notes = "根据部署单条查询其所有Nodes")
     public ResponseEntity<?> processListNodes(@PathVariable String process_id) {
         try {
-            List<ProcessDefinition> list = processEngine.getRepositoryService()//与流程定义和部署对象相关的Service
-                    .createProcessDefinitionQuery()//创建一个流程定义查询
-                    /*指定查询条件,where条件*/
-                    .deploymentId(process_id)//使用部署对象ID查询
-                    //.processDefinitionId(processDefinitionId)//使用流程定义ID查询
-                    //.processDefinitionKey(processDefinitionKey)//使用流程定义的KEY查询
-                    //.processDefinitionNameLike(processDefinitionNameLike)//使用流程定义的名称模糊查询
-                    /*排序*/
-                    //.orderByProcessDefinitionVersion().asc()//按照版本的升序排列
-                    //.orderByProcessDefinitionName().desc()//按照流程定义的名称降序排列
-                    .list();//返回一个集合列表，封装流程定义
-                    //.singleResult();//返回唯一结果集
-                    //.count();//返回结果集数量
-                    //.listPage(firstResult, maxResults)//分页查询
-            String processDefinitionId = list.get(0).getId();
+            String processDefinitionId = getProcessDefIdByProcessId(process_id);
             BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
             Collection<FlowElement> flowElements = bpmnModel.getMainProcess().getFlowElements();
             List<FlowElement> result = flowElements.stream().filter(flowElement -> flowElement instanceof ManualTask || flowElement instanceof ExclusiveGateway).collect(Collectors.toList());
@@ -403,4 +391,32 @@ public class DeployController {
 		}
     }
 
+    /**
+     * 根据流程id获取流程定义id
+     *
+     * @param process_id 
+     * @return java.lang.String
+     * @author apr
+     * @date 2021/10/27 14:43
+     */
+    private String getProcessDefIdByProcessId(String process_id){
+           List<ProcessDefinition> list = processEngine.getRepositoryService()//与流程定义和部署对象相关的Service
+                    .createProcessDefinitionQuery()//创建一个流程定义查询
+                    /*指定查询条件,where条件*/
+                    .deploymentId(process_id)//使用部署对象ID查询
+                    //.processDefinitionId(processDefinitionId)//使用流程定义ID查询
+                    //.processDefinitionKey(processDefinitionKey)//使用流程定义的KEY查询
+                    //.processDefinitionNameLike(processDefinitionNameLike)//使用流程定义的名称模糊查询
+                    /*排序*/
+                    //.orderByProcessDefinitionVersion().asc()//按照版本的升序排列
+                    //.orderByProcessDefinitionName().desc()//按照流程定义的名称降序排列
+                    .list();//返回一个集合列表，封装流程定义
+                    //.singleResult();//返回唯一结果集
+                    //.count();//返回结果集数量
+                    //.listPage(firstResult, maxResults)//分页查询
+
+            if(list==null || list.isEmpty() || list.get(0)==null)
+                return null;
+            return list.get(0).getId();
+    }
 }

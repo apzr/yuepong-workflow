@@ -18,7 +18,6 @@ import java.util.List;
 @Data
 @TableName("s_sys_flow_h")
 public class SysFlow {
-    private static final long serialVersionUID = 1L;
     /*
      * uuid
      */

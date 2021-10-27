@@ -14,7 +14,6 @@ import lombok.Data;
 @Data
 @TableName("s_sys_flow_b")
 public class SysFlowExt {
-    private static final long serialVersionUID = 1L;
     /*
      * uuid
      */

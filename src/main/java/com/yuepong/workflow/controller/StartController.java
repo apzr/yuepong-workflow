@@ -14,6 +14,8 @@ import org.activiti.engine.repository.ProcessDefinitionQuery;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.runtime.ProcessInstanceQuery;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,7 +26,8 @@ import java.util.*;
  * @author Apr
  * @Description <p> 启动流程实例 </p>
  */
-@RestController
+@Transactional
+@Controller
 @Api(tags="启动流程实例")
 public class StartController {
 

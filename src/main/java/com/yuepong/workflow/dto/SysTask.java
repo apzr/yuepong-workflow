@@ -12,7 +12,6 @@ import lombok.Data;
 @Data
 @TableName("s_sys_task_h")
 public class SysTask {
-    private static final long serialVersionUID = 1L;
     /*
      * uuid
      */
@@ -21,13 +20,13 @@ public class SysTask {
     /*
      * s_sys_flow_h绑定的系统模块
      */
-    private String s_key;
+    private String sKey;
     /*
      * 业务数据id
      */
-    private String s_id;
+    private String sId;
     /*
      * 流程启动成功后返回的实例id
      */
-    private String task_id;
+    private String taskId;
 }

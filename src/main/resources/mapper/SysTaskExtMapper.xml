@@ -3,5 +3,17 @@
 <mapper namespace="com.yuepong.workflow.mapper.SysTaskExtMapper">
     <resultMap id="BaseResultMap" type="com.yuepong.workflow.dto.SysTaskExt">
         <id column="id" property="id" jdbcType="VARCHAR"/>
+        <result column="h_id" property="hId" jdbcType="VARCHAR"/>
+        <result column="node" property="node" jdbcType="VARCHAR"/>
+        <result column="user" property="user" jdbcType="VARCHAR"/>
+        <result column="record" property="record" jdbcType="VARCHAR"/>
+        <result column="opinion" property="opinion" jdbcType="VARCHAR"/>
+        <result column="time" property="time" jdbcType="VARCHAR"/>
+        <result column="oper_time" property="operTime" jdbcType="VARCHAR"/>
     </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, h_id, node, user, record, opinion, time, oper_time
+    </sql>
 </mapper>

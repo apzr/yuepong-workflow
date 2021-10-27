@@ -1,9 +1,10 @@
 package com.yuepong.workflow.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.yuepong.workflow.dto.SysTaskExt;
+import com.yuepong.workflow.dto.SysTask;
 import org.apache.ibatis.annotations.Mapper;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * SysFlowMapper
@@ -15,6 +16,6 @@ import org.springframework.stereotype.Component;
  **/
 @Mapper
 @Component
-public interface SysTaskMapper extends BaseMapper<SysTaskExt> {
+public interface SysTaskMapper extends BaseMapper<SysTask> {
 
 }
