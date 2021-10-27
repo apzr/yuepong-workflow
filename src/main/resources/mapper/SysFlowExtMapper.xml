@@ -3,5 +3,15 @@
 <mapper namespace="com.yuepong.workflow.mapper.SysFlowExtMapper">
     <resultMap id="BaseResultMap" type="com.yuepong.workflow.dto.SysFlowExt">
         <id column="id" property="id" jdbcType="VARCHAR"/>
+        <id column="h_id" property="hId" jdbcType="VARCHAR"/>
+        <id column="node" property="node" jdbcType="VARCHAR"/>
+        <id column="type" property="type" jdbcType="VARCHAR"/>
+        <id column="filed" property="filed" jdbcType="VARCHAR"/>
+        <id column="conditions" property="conditions" jdbcType="VARCHAR"/>
+        <id column="value" property="value" jdbcType="VARCHAR"/>
+        <id column="next_node" property="nextNode" jdbcType="VARCHAR"/>
     </resultMap>
+    <select id="findNodesByHID" resultType="com.yuepong.workflow.dto.SysFlowExt">
+        select * from s_sys_flow_b where h_id = #{hid}
+    </select>
 </mapper>

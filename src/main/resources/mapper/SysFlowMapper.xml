@@ -3,17 +3,17 @@
 <mapper namespace="com.yuepong.workflow.mapper.SysFlowMapper">
     <resultMap id="BaseResultMap" type="com.yuepong.workflow.dto.SysFlow">
         <id column="id" property="id" jdbcType="VARCHAR"/>
-        <result column="sys_model" property="sys_model" jdbcType="VARCHAR"/>
-        <result column="sys_table" property="sys_table" jdbcType="VARCHAR"/>
-        <result column="flow_id" property="flow_id" jdbcType="VARCHAR"/>
+        <result column="sys_model" property="sysModel" jdbcType="VARCHAR"/>
+        <result column="sys_table" property="sysTable" jdbcType="VARCHAR"/>
+        <result column="flow_id" property="flowId" jdbcType="VARCHAR"/>
     </resultMap>
 
+    <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, sys_model, sys_table, flow_id
+        id,
+        sys_model,
+        sys_table,
+        flow_id
     </sql>
-
-    <select id="testList" resultType="com.yuepong.workflow.dto.SysFlow">
-        select id,sys_model,sys_table,flow_id from s_sys_flow_b limit 3
-    </select>
 
 </mapper>

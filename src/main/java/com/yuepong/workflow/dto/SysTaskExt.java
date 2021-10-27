@@ -12,7 +12,7 @@ import lombok.Data;
  * @date 2021/10/26 16:12:58
  **/
 @Data
-@TableName("s_sys_task_h")
+@TableName("s_sys_task_b")
 public class SysTaskExt {
     private static final long serialVersionUID = 1L;
     /*

@@ -1,8 +1,12 @@
 package com.yuepong.workflow.mapper;
 
+import cn.hutool.system.UserInfo;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yuepong.workflow.dto.SysFlow;
-import org.apache.ibatis.annotations.Mapper;
+import com.yuepong.workflow.dto.SysFlowExt;
+import org.apache.ibatis.annotations.*;
+import org.apache.ibatis.mapping.FetchType;
+import org.apache.ibatis.type.JdbcType;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -19,5 +23,4 @@ import java.util.List;
 @Component
 public interface SysFlowMapper extends BaseMapper<SysFlow> {
 
-    List<SysFlow> testList();
 }

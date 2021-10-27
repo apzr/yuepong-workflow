@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * SysTask
  * <p>
@@ -14,7 +16,7 @@ import lombok.Data;
  * @date 2021/10/26 16:09:39
  **/
 @Data
-@TableName("s_sys_flow_b")
+@TableName("s_sys_flow_h")
 public class SysFlow {
     private static final long serialVersionUID = 1L;
     /*
@@ -25,13 +27,24 @@ public class SysFlow {
     /*
      * 系统模块
      */
-    private String sys_model;
+    private String sysModel;
     /*
      * 系统表
      */
-    private String sys_table;
+    private String sysTable;
     /*
      * 流程id
      */
-    private String flow_id;
+    private String flowId;
+
+    public SysFlow(){
+
+    }
+
+    public SysFlow(String id, String sysModel, String sysTable, String flowId){
+        this.id = id;
+        this.sysModel = sysModel;
+        this.sysTable = sysTable;
+        this.flowId = flowId;
+    }
 }

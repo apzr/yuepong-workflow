@@ -12,7 +12,7 @@ import lombok.Data;
  * @date 2021/10/26 16:10
  */
 @Data
-@TableName("s_sys_flow_h")
+@TableName("s_sys_flow_b")
 public class SysFlowExt {
     private static final long serialVersionUID = 1L;
     /*
@@ -23,7 +23,7 @@ public class SysFlowExt {
     /*
      * 主表id
      */
-    private String h_id;
+    private String hId;
     /*
      * 流程节点
      */
@@ -47,5 +47,19 @@ public class SysFlowExt {
     /*
      * 下一个节点
      */
-    private String next_node;
+    private String nextNode;
+
+    public SysFlowExt(){
+
+    }
+
+    public SysFlowExt(String hId, String node, String type,String filed, String conditions, String value, String nextNode){
+        this.hId = hId;
+        this.node = node;
+        this.type = type;
+        this.filed = filed;
+        this.conditions = conditions;
+        this.value = value;
+        this.nextNode = nextNode;
+    }
 }

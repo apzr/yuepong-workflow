@@ -1,10 +1,7 @@
 package com.yuepong.workflow.controller;
 
-import cn.hutool.core.util.StrUtil;
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -12,10 +9,8 @@ import com.google.common.collect.Lists;
 import com.yuepong.jdev.api.bean.ResponseResult;
 import com.yuepong.jdev.code.CodeMsgs;
 import com.yuepong.jdev.exception.BizException;
-import com.yuepong.workflow.dto.DeploymentDTO;
-import com.yuepong.workflow.dto.ModelAttr;
-import com.yuepong.workflow.dto.ModelQueryParam;
-import com.yuepong.workflow.dto.SysFlow;
+import com.yuepong.workflow.dto.*;
+import com.yuepong.workflow.mapper.SysFlowExtMapper;
 import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.utils.BpmnConverterUtil;
 import com.yuepong.workflow.utils.RestMessgae;
@@ -28,17 +23,10 @@ import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.ProcessEngine;
 import org.activiti.engine.ProcessEngines;
 import org.activiti.engine.RepositoryService;
-import org.activiti.engine.impl.RepositoryServiceImpl;
-import org.activiti.engine.impl.context.Context;
-import org.activiti.engine.impl.persistence.deploy.DeploymentManager;
-import org.activiti.engine.impl.persistence.entity.DeploymentEntity;
-import org.activiti.engine.impl.persistence.entity.DeploymentEntityImpl;
-import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.activiti.engine.repository.Deployment;
 import org.activiti.engine.repository.DeploymentBuilder;
 import org.activiti.engine.repository.Model;
 import org.activiti.engine.repository.ProcessDefinition;
-import org.activiti.spring.process.ProcessExtensionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
@@ -46,13 +34,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.ZipInputStream;
 
 /**
  * @author Apr
- * @Description <p> 部署流程、删除流程 </p>
  */
 @Controller
 @Api(tags="部署流程、删除流程")
@@ -64,6 +52,9 @@ public class DeployController {
 
     @Autowired
     SysFlowMapper sysFlowMapper;
+
+    @Autowired
+    SysFlowExtMapper sysFlowExtMapper;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -97,7 +88,7 @@ public class DeployController {
             Deployment deployment = repositoryService
                     .createDeployment()
                     .name(modelData.getName())
-                    .addString(processName, new String(bpmnBytes, "UTF-8"))
+                    .addString(processName, new String(bpmnBytes, StandardCharsets.UTF_8))
                     .deploy();
             modelData.setDeploymentId(deployment.getId());
             repositoryService.saveModel(modelData);
@@ -134,7 +125,7 @@ public class DeployController {
             e.printStackTrace();
         }
 
-        if (deployment != null) {
+        if (Objects.nonNull(deployment)) {
             Map<String, String> result = new HashMap<>(2);
             result.put("deployID", deployment.getId());
             result.put("deployName", deployment.getName());
@@ -152,7 +143,7 @@ public class DeployController {
         RestMessgae restMessgae = new RestMessgae();
         Deployment deployment = null;
         try {
-            InputStream in = this.getClass().getClassLoader().getResourceAsStream("processes/leaveProcess.zip");
+            InputStream in = this.getClass().getClassLoader().getResourceAsStream("processes/"+zipName+".zip");
             ZipInputStream zipInputStream = new ZipInputStream(in);
             deployment = repositoryService.createDeployment()
                     .name("请假流程2")
@@ -162,8 +153,6 @@ public class DeployController {
             zipInputStream.close();
         } catch (Exception e) {
             restMessgae = RestMessgae.fail("部署失败", e.getMessage());
-            // TODO 上线时删除
-            e.printStackTrace();
         }
         if (deployment != null) {
             Map<String, String> result = new HashMap<>(2);
@@ -177,22 +166,18 @@ public class DeployController {
     @PostMapping(path = "deleteProcess")
     @ApiOperation(value = "根据部署ID删除流程",notes = "根据部署ID删除流程")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "deploymentId",value = "部署ID",dataType = "String",paramType = "query",example = "")
+            @ApiImplicitParam(name = "deploymentId",value = "部署ID",dataType = "String",paramType = "query",example = "example")
     })
     public RestMessgae deleteProcess(@RequestParam("deploymentId") String deploymentId){
-        RestMessgae restMessgae = new RestMessgae();
-        /**不带级联的删除：只能删除没有启动的流程，如果流程启动，就会抛出异常*/
+        RestMessgae restMessgae ;
         try {
             repositoryService.deleteDeployment(deploymentId);
+            restMessgae = RestMessgae.success("删除成功", null);
         } catch (Exception e) {
             restMessgae = RestMessgae.fail("删除失败", e.getMessage());
-            // TODO 上线时删除
             e.printStackTrace();
         }
 
-        /**级联删除：不管流程是否启动，都能删除*/
-//        repositoryService.deleteDeployment(deploymentId, true);
-        restMessgae = RestMessgae.success("删除成功", null);
         return  restMessgae;
     }
 
@@ -258,8 +243,8 @@ public class DeployController {
 
             //db
             repositoryService.saveModel(model);
-            repositoryService.addModelEditorSource(model.getId(), jsonBpmnXml.getBytes("utf-8"));
-            repositoryService.addModelEditorSourceExtra(model.getId(), svg.getBytes("utf-8"));
+            repositoryService.addModelEditorSource(model.getId(), jsonBpmnXml.getBytes(StandardCharsets.UTF_8));
+            repositoryService.addModelEditorSourceExtra(model.getId(), svg.getBytes(StandardCharsets.UTF_8));
 
 			return ResponseResult.success("请求成功", modelId).response();
 		} catch (BizException be) {
@@ -286,14 +271,14 @@ public class DeployController {
     @ApiOperation(value = "查询部署列表",notes = "查询部署列表")
     public ResponseEntity<?> processList(@RequestParam @Nullable Integer firstResult, @RequestParam @Nullable Integer maxResults) {
         try {
-            if(firstResult==null && maxResults==null){
+            if(firstResult==null)
                 firstResult = 0;
+            if(maxResults==null)
                 maxResults=9999;
-            }
 
             List<Deployment> deployments = repositoryService.createDeploymentQuery().listPage(firstResult, maxResults);
             List<DeploymentDTO> deploymentDTOs = Lists.newArrayList();
-            deployments.stream().forEach(d -> {
+            deployments.forEach(d -> {
                 DeploymentDTO dd = new DeploymentDTO(d.getId(), d.getName());
                 deploymentDTOs.add(dd);
             });
@@ -338,12 +323,75 @@ public class DeployController {
     }
 
     @PostMapping("/model/apply")
-    @ApiOperation(value = "关联model和流程",notes = "根据流程id?和model id进行关联")
-    public ResponseEntity<?> applyModel() {
+    @ApiOperation(value = "关联流程和业务节点", notes = "不用传id和关联id")
+    public ResponseEntity<?> applyModel(@RequestBody SysFlow flow, @RequestBody List<SysFlowExt> nodes) {
         try {
+            String flowId = UUID.randomUUID().toString();
+            flow.setId(flowId);
+            sysFlowMapper.insert(flow);
+
+            nodes.forEach(node -> {
+                String nodeId = UUID.randomUUID().toString();
+                node.setId(nodeId);
+                node.setHId(flowId);
+                sysFlowExtMapper.insert(node);
+            });
+
+            return ResponseResult.success("请求成功", null).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @GetMapping("/model/flow/list")
+    @ApiOperation(value = "查询流程列表",notes = "查询流程列表")
+    public ResponseEntity<?> flowList() {
+        try{
             LambdaQueryWrapper<SysFlow> queryWrapper = new LambdaQueryWrapper<>();
-            List<SysFlow> sysFlows = sysFlowMapper.testList();
-			return ResponseResult.success("请求成功", sysFlows).response();
+            List<SysFlow> list = sysFlowMapper.selectList(queryWrapper);
+            return ResponseResult.success("请求成功", list).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @PostMapping("/model/flow/search")
+    @ApiOperation(value = "根据流程id, sysModel, sysTable, flowId查询流程",notes = "根据流程id, sysModel, sysTable, flowId查询流程")
+    public ResponseEntity<?> flowById(@RequestBody SysFlow sysFlow) {
+        try{
+            LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
+            if(Objects.nonNull(sysFlow)){
+                if(Objects.nonNull(sysFlow.getId()))
+                    lambdaQuery.eq(SysFlow::getId, sysFlow.getId());
+                if(Objects.nonNull(sysFlow.getSysModel()))
+                    lambdaQuery.eq(SysFlow::getSysModel, sysFlow.getSysModel());
+                if(Objects.nonNull(sysFlow.getSysTable()))
+                    lambdaQuery.eq(SysFlow::getSysTable, sysFlow.getSysTable());
+                if(Objects.nonNull(sysFlow.getFlowId()))
+                    lambdaQuery.eq(SysFlow::getFlowId, sysFlow.getFlowId());
+            }
+            List<SysFlow> list = sysFlowMapper.selectList(lambdaQuery);
+            return ResponseResult.success("请求成功", list).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @GetMapping("/model/nodes/flow/{flow_id}")
+    @ApiOperation(value = "根据流程id查询所有节点",notes = "根据流程id查询所有节点")
+    public ResponseEntity<?> nodesByFlow(@PathVariable String flow_id) {
+        try{
+            List<SysFlowExt> list = sysFlowExtMapper.findNodesByHID(flow_id);
+            return ResponseResult.success("请求成功", list).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
