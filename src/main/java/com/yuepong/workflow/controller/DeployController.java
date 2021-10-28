@@ -300,7 +300,7 @@ public class DeployController {
             String processDefinitionId = getProcessDefIdByProcessId(process_id);
             BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
             Collection<FlowElement> flowElements = bpmnModel.getMainProcess().getFlowElements();
-            List<FlowElement> result = flowElements.stream().filter(flowElement -> flowElement instanceof ManualTask || flowElement instanceof ExclusiveGateway).collect(Collectors.toList());
+            List<FlowElement> result = flowElements.stream().filter(flowElement -> flowElement instanceof Task || flowElement instanceof Gateway).collect(Collectors.toList());
 			return ResponseResult.success("请求成功", result).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
