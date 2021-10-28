@@ -42,10 +42,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -185,6 +182,38 @@ public class TaskController {
         restMessgae = RestMessgae.success("创建成功", null);
         return restMessgae;
     }
+
+    @GetMapping("task/user/{user_id}")
+    @ApiOperation(value = "查询当前用户的任务", notes = "查询当前用户的任务")
+    @Transactional
+    public ResponseEntity<?> getTaskByUser(@PathVariable String user_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+            List<Task> tasks = taskService.createTaskQuery().active().taskAssignee(user_id).list();
+            return ResponseResult.success("请求成功", tasks).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+
+    @GetMapping("model/process/instanceList")
+    @ApiOperation(value = "查询当前所有正在进行的流程", notes = "查询当前所有正在进行的流程")
+    @Transactional
+    public ResponseEntity<?> getInstanceList() {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+            List<ProcessInstance> instanceList = runtimeService.createProcessInstanceQuery().active().list();
+            return ResponseResult.success("请求成功", instanceList).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
 
     @GetMapping("task/create")
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
