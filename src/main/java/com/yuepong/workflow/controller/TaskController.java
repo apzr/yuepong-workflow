@@ -5,10 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yuepong.jdev.api.bean.ResponseResult;
 import com.yuepong.jdev.code.CodeMsgs;
 import com.yuepong.jdev.exception.BizException;
-import com.yuepong.workflow.dto.SysFlow;
-import com.yuepong.workflow.dto.SysFlowExt;
-import com.yuepong.workflow.dto.SysTask;
-import com.yuepong.workflow.dto.SysTaskExt;
+import com.yuepong.workflow.dto.*;
 import com.yuepong.workflow.mapper.SysFlowExtMapper;
 import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.mapper.SysTaskExtMapper;
@@ -23,6 +20,7 @@ import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricActivityInstance;
+import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
 import org.activiti.engine.impl.interceptor.CommandContext;
@@ -75,17 +73,20 @@ public class TaskController {
     SysFlowMapper sysFlowMapper;
 
     @Autowired
+    SysFlowExtMapper sysFlowExtMapper;
+
+    @Autowired
     HistoryService historyService;
 
     public TaskController(TaskService taskService) {
         this.taskService = taskService;
     }
 
-    @PostMapping(path = "findTaskByAssignee")
-    @ApiOperation(value = "根据流程assignee查询当前人的个人任务", notes = "根据流程assignee查询当前人的个人任务")
-    @ApiImplicitParams({
-            @ApiImplicitParam(name = "assignee", value = "代理人（当前用户）", dataType = "String", paramType = "query", example = ""),
-    })
+//    @PostMapping(path = "findTaskByAssignee")
+//    @ApiOperation(value = "根据流程assignee查询当前人的个人任务", notes = "根据流程assignee查询当前人的个人任务")
+//    @ApiImplicitParams({
+//            @ApiImplicitParam(name = "assignee", value = "代理人（当前用户）", dataType = "String", paramType = "query", example = ""),
+//    })
     public RestMessgae findTaskByAssignee(@RequestParam("assignee") String assignee) {
         RestMessgae restMessgae = new RestMessgae();
 
@@ -136,12 +137,12 @@ public class TaskController {
         return restMessgae;
     }
 
-    @PostMapping(path = "completeTask")
-    @ApiOperation(value = "完成任务", notes = "完成任务，任务进入下一个节点")
-    @ApiImplicitParams({
-            @ApiImplicitParam(name = "taskId", value = "任务ID", dataType = "String", paramType = "query", example = ""),
-            @ApiImplicitParam(name = "days", value = "请假天数", dataType = "int", paramType = "query", example = ""),
-    })
+//    @PostMapping(path = "completeTask")
+//    @ApiOperation(value = "完成任务", notes = "完成任务，任务进入下一个节点")
+//    @ApiImplicitParams({
+//            @ApiImplicitParam(name = "taskId", value = "任务ID", dataType = "String", paramType = "query", example = ""),
+//            @ApiImplicitParam(name = "days", value = "请假天数", dataType = "int", paramType = "query", example = ""),
+//    })
     public RestMessgae completeTask(@RequestParam("taskId") String taskId,
                                     @RequestParam("days") int days) {
 
@@ -160,11 +161,11 @@ public class TaskController {
         return restMessgae;
     }
 
-    @PostMapping(path = "createTask")
-    @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
-    @ApiImplicitParams({
-            @ApiImplicitParam(name = "processId", value = "流程ID", dataType = "String", paramType = "query", example = ""),
-    })
+//    @PostMapping(path = "createTask")
+//    @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
+//    @ApiImplicitParams({
+//            @ApiImplicitParam(name = "processId", value = "流程ID", dataType = "String", paramType = "query", example = ""),
+//    })
     public RestMessgae createTask(@RequestParam("processId") String processId) {
 
         RestMessgae restMessgae;
@@ -183,64 +184,41 @@ public class TaskController {
         return restMessgae;
     }
 
-    @GetMapping("task/user/{user_id}")
-    @ApiOperation(value = "查询当前用户的任务", notes = "查询当前用户的任务")
-    @Transactional
-    public ResponseEntity<?> getTaskByUser(@PathVariable String user_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
-        try{
-            List<Task> tasks = taskService.createTaskQuery().active().taskAssignee(user_id).list();
-            return ResponseResult.success("请求成功", tasks).response();
-		} catch (BizException be) {
-			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
-		} catch (Exception ex) {
-            ex.printStackTrace();
-			return ResponseResult.error(ex.getMessage()).response();
-		}
-    }
-
-
-    @GetMapping("model/process/instanceList")
-    @ApiOperation(value = "查询当前所有正在进行的流程", notes = "查询当前所有正在进行的流程")
-    @Transactional
-    public ResponseEntity<?> getInstanceList() {//"032bf875-99b0-4c85-91c0-e128fc759565"
-        try{
-            List<ProcessInstance> instanceList = runtimeService.createProcessInstanceQuery().active().list();
-            return ResponseResult.success("请求成功", instanceList).response();
-		} catch (BizException be) {
-			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
-		} catch (Exception ex) {
-            ex.printStackTrace();
-			return ResponseResult.error(ex.getMessage()).response();
-		}
-    }
-
-
-    @GetMapping("task/create")
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "processId", value = "流程ID", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "type", value = "流程类型代码", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "route", value = "路由", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "userId", value = "用户ID", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "dataId", value = "数据ID", dataType = "String", paramType = "query", example = ""),
     })
+    @PostMapping("/task/create")
     @Transactional
-    public ResponseEntity<?> taskCreate(@RequestParam String model_id, @RequestParam String business_id, @RequestParam String user_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    public ResponseEntity<?> taskCreate(@RequestBody TaskParam tp) {//"032bf875-99b0-4c85-91c0-e128fc759565"
         try{
             //启动流程
             LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
-            lambdaQuery.eq(SysFlow::getSysModel, model_id);
+            lambdaQuery.eq(SysFlow::getSysModel, tp.getType());
+            lambdaQuery.eq(SysFlow::getSysDisable, false);
             SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
             if(Objects.isNull(flow))
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "该业务未绑定流程", model_id).response();
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "该业务未绑定或未激活流程", tp).response();
 
+            HashMap<String, Object> variables=new HashMap<>(1);
+            variables.put("userKey", tp.getUserId());//发起人 存于act_hi_varinst 
             String def_id = getProcessDefIdByProcessId(flow.getFlowId());//e8ac29e2-363b-11ec-b8d8-3c970ef14df2
+            if(Objects.isNull(def_id))
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到流程", tp).response();
             //String processDefinitionKey="proc_def_key"+def_id;
-            ProcessInstance processInstance = runtimeService.startProcessInstanceById(def_id, business_id);//对某一个流程启用一个流程实例
+            ProcessInstance processInstance = runtimeService.startProcessInstanceById(def_id, tp.getType(), variables);//对某一个流程启用一个流程实例
 
             //自定义表1
             SysTask sysTask = new SysTask();
             String taskId = UUID.randomUUID().toString();
             sysTask.setId(taskId);
-            sysTask.setSKey(model_id);
-            sysTask.setSId(business_id);
+            sysTask.setSKey(tp.getType());
+            sysTask.setSId(flow.getId());
             sysTask.setTaskId(processInstance.getId());
+            sysTask.setRoute(tp.getRoute());
             sysTaskMapper.insert(sysTask);
 
             //自定义表2: 开始
@@ -250,7 +228,7 @@ public class TaskController {
             startNode.setHId(taskId);
             String startNodeKey = getStartKey(def_id);
             startNode.setNode(startNodeKey);
-            startNode.setUser(user_id);
+            startNode.setUser(tp.getUserId());
             startNode.setRecord("");
             startNode.setOpinion("");
             startNode.setTime(System.currentTimeMillis()+"");
@@ -306,7 +284,8 @@ public class TaskController {
                     currentNode.setOperTime(timeBetween.toString());
                     sysTaskExtMapper.insert(currentNode);
                 } else if(Operations.CANCEL.getCode().equals(opinion)){
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码, 只能传option=1, 同意", opinion).response();
+                    //TODO: 流程任务取消
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码, 取消任务还未实现", opinion).response();
                 } else if(Operations.REJECT.getCode().equals(opinion)){
                     //自定义表Task记录表表插入一条新的记录
                     LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
@@ -374,6 +353,68 @@ public class TaskController {
 		}
     }
 
+    @ApiOperation(value = "查询当前用户的任务", notes = "查询当前用户的任务")
+    @ApiImplicitParams({ @ApiImplicitParam(
+            name = "user_id",
+            value = "用户id",
+            dataType = "String",
+            paramType = "query",
+            example = ""
+    ) })
+    @GetMapping("/task/user/{user_id}")
+    public ResponseEntity<?> getTaskByUser(@PathVariable String user_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+            List<TaskTodo> tasks = new ArrayList<>();
+
+            LambdaQueryWrapper<SysFlowExt> condition = new LambdaQueryWrapper();
+            condition.eq(SysFlowExt::getOperation, user_id);
+            List<SysFlowExt> customUserTasks = sysFlowExtMapper.selectList(condition);
+            if(Objects.nonNull(customUserTasks) && !customUserTasks.isEmpty()){
+                customUserTasks.stream().forEach(customUserTask -> {
+                    Task actTask = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).singleResult();
+                        //.taskId(actTask.getId())
+                    List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                                .createHistoricVariableInstanceQuery()
+                                .processInstanceId(actTask.getProcessInstanceId())
+                                //.taskId(actTask.getId())
+                                .variableName("userKey")
+                                .list();
+                    String userKey = "无";
+                    if(Objects.nonNull(varList) && !varList.isEmpty()){
+                        userKey = String.valueOf(varList.get(0).getValue());
+                    }
+
+                    LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+                    taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
+                    SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+
+                    if(Objects.nonNull(actTask)){
+                        TaskTodo tt = new TaskTodo(
+                            actTask.getId(),
+                            actTask.getProcessInstanceId(),
+                            actTask.getName()==null?customUserTask.getNode():actTask.getName(),
+                            customUserTask.getOperation(),
+                            userKey,
+                            actTask.getCreateTime().getTime()+"",
+                            System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
+                            sysTask
+                        );
+
+                        tasks.add(tt);
+                    }
+                });
+
+            }
+
+            return ResponseResult.success("请求成功", tasks).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
     /**
      * 获取流程定义开始节点的Key
      *
@@ -419,7 +460,6 @@ public class TaskController {
                 return sourceFlowElement;//获取节点
             }
         }
-
         return null;
     }
     
@@ -439,9 +479,9 @@ public class TaskController {
                 return targetFlowElement;//获取节点
             }
         }
-
         return null;
     }
+
     /**
      * 根据流程id获取流程定义id
      *

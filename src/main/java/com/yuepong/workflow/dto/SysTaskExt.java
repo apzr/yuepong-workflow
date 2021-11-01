@@ -31,12 +31,16 @@ public class SysTaskExt {
      * 操作人
      */
     private String user;
+    /*
+     * 操作人类型
+     */
+    private String userType;
 	/*
      * 操作记录(1,2,3 同意,作废,打回草稿)
      */
     private String record;
-	/*
-     * 操作意见
+    /*
+     * 操作
      */
     private String opinion;
 	/*

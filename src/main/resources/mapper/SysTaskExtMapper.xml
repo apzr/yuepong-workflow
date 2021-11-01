@@ -6,6 +6,7 @@
         <result column="h_id" property="hId" jdbcType="VARCHAR"/>
         <result column="node" property="node" jdbcType="VARCHAR"/>
         <result column="user" property="user" jdbcType="VARCHAR"/>
+        <result column="user_type" property="userType" jdbcType="VARCHAR"/>
         <result column="record" property="record" jdbcType="VARCHAR"/>
         <result column="opinion" property="opinion" jdbcType="VARCHAR"/>
         <result column="time" property="time" jdbcType="VARCHAR"/>
@@ -14,6 +15,6 @@
 
     <!-- 通用查询结果列 -->
     <sql id="Base_Column_List">
-        id, h_id, node, user, record, opinion, time, oper_time
+        id, h_id, node, user, user_type, record, opinion, time, oper_time
     </sql>
 </mapper>

@@ -28,9 +28,9 @@ public class SysFlow {
      */
     private String sysModel;
     /*
-     * 系统表
+     * 系统启用激活
      */
-    private String sysTable;
+    private Boolean sysDisable;
     /*
      * 流程id
      */
@@ -40,10 +40,10 @@ public class SysFlow {
 
     }
 
-    public SysFlow(String id, String sysModel, String sysTable, String flowId){
+    public SysFlow(String id, String sysModel, Boolean sysDisable, String flowId){
         this.id = id;
         this.sysModel = sysModel;
-        this.sysTable = sysTable;
+        this.sysDisable = sysDisable;
         this.flowId = flowId;
     }
 }

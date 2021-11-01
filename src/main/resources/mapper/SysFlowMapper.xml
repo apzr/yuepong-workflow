@@ -4,7 +4,7 @@
     <resultMap id="BaseResultMap" type="com.yuepong.workflow.dto.SysFlow">
         <id column="id" property="id" jdbcType="VARCHAR"/>
         <result column="sys_model" property="sysModel" jdbcType="VARCHAR"/>
-        <result column="sys_table" property="sysTable" jdbcType="VARCHAR"/>
+        <result column="sys_disable" property="sysDisable" jdbcType="TINYINT"/>
         <result column="flow_id" property="flowId" jdbcType="VARCHAR"/>
     </resultMap>
 
@@ -12,7 +12,7 @@
     <sql id="Base_Column_List">
         id,
         sys_model,
-        sys_table,
+        sys_disable,
         flow_id
     </sql>
 

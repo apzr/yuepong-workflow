@@ -18,7 +18,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.util.*;
 
@@ -26,9 +25,9 @@ import java.util.*;
  * @author Apr
  * @Description <p> 启动流程实例 </p>
  */
-@Transactional
-@Controller
-@Api(tags="启动流程实例")
+//@Transactional
+//@Controller
+//@Api(tags="启动流程实例")
 public class StartController {
 
     private final RuntimeService runtimeService;

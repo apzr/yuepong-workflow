@@ -30,7 +30,11 @@ public class SysFlowExt {
     /*
      * 节点类型
      */
-    private String type;
+    private String nodeType;
+    /*
+     * 节点attr
+     */
+    private String nodeSkip;
     /*
      * 业务变量
      */
@@ -44,6 +48,14 @@ public class SysFlowExt {
      */
     private String value;
     /*
+     * 值
+     */
+    private String operation;
+    /*
+     * 值
+     */
+    private String userType;
+    /*
      * 下一个节点
      */
     private String nextNode;
@@ -55,7 +67,7 @@ public class SysFlowExt {
     public SysFlowExt(String hId, String node, String type,String field, String conditions, String value, String nextNode){
         this.hId = hId;
         this.node = node;
-        this.type = type;
+        this.nodeType = type;
         this.field = field;
         this.conditions = conditions;
         this.value = value;
