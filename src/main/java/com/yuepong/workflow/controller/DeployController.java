@@ -288,7 +288,16 @@ public class DeployController {
     @PostMapping("/search")
     public ResponseEntity<?> getModel(@RequestBody ModelQueryParam modelQueryParam) {
         try {
-            byte[] bpmnBytes = repositoryService.getModelEditorSource(modelQueryParam.getId());
+
+            byte[] bpmnBytes = null;
+            if(Objects.nonNull(modelQueryParam.getId()))
+                bpmnBytes = repositoryService.getModelEditorSource(modelQueryParam.getId());
+            else if(Objects.nonNull(modelQueryParam.getInstanceId())){
+                ProcessInstance instance = runtimeService.createProcessInstanceQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
+                Model model = repositoryService.createModelQuery().deploymentId(instance.getDeploymentId()).singleResult();
+                bpmnBytes = repositoryService.getModelEditorSource(model.getId());
+            }
+
             if(null == bpmnBytes) {
                 throw new BizException("模型数据为空");
             }

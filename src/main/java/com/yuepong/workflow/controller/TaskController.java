@@ -415,6 +415,24 @@ public class TaskController {
 		}
     }
 
+    @ApiOperation(value = "")
+    @GetMapping("/task/sysTaskList/{id}")
+    public ResponseEntity<?> getTaskByHeaderId(@PathVariable String id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+
+            LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+            lambdaQuery2.eq(SysTaskExt::getHId, id);
+            List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+
+            return ResponseResult.success("请求成功", tasksList).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
     /**
      * 获取流程定义开始节点的Key
      *

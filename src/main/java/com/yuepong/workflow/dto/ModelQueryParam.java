@@ -14,4 +14,5 @@ import lombok.Data;
 public class ModelQueryParam {
 
     private String id;
+    private String instanceId;
 }
