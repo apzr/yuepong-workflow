@@ -13,9 +13,9 @@ import lombok.Data;
 @Data
 public class TaskParam {
 
-    private String type;
-    private String route;
-    private String userId;
-    private String dataId;
+    public String type;
+    public String route;
+    public String userId;
+    public String dataId;
 
 }

@@ -12,8 +12,8 @@ import lombok.Data;
  **/
 @Data
 public class ModelAttr{
-    private String bpmn_xml;
+    public String bpmn_xml;
 
-    private String svg_xml;
+    public String svg_xml;
 
 }

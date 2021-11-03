@@ -31,6 +31,7 @@ import org.activiti.engine.repository.DeploymentBuilder;
 import org.activiti.engine.repository.Model;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.lang.Nullable;
@@ -221,7 +222,7 @@ public class DeployController {
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), modelId).response();
 		} catch (Exception ex) {
-			return ResponseResult.error(ex.getMessage()).response();
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,ex.getMessage(), null).response();
 		}
     }
 
@@ -468,17 +469,22 @@ public class DeployController {
             @ApiResponse(code=200500, message="业务处理失败"),
             @ApiResponse(code=500, message="系统错误")
     })
-    @GetMapping("/process/{deployment_id}/nodes")
-    public ResponseEntity<?> processListNodes(@PathVariable String deployment_id) {
+    @GetMapping("/process/{processInstId_or_deploymentId}/nodes")
+    public ResponseEntity<?> processListNodes(@PathVariable String processInstId_or_deploymentId) {
         try {
             List<FlowElement> result = new LinkedList();
-            String processDefinitionId = getProcessDefIdByProcessId(deployment_id);
-            if(Objects.nonNull(processDefinitionId)){
+//            String processDefinitionId = getProcessDefIdByProcessInstId(processInstId_or_deploymentId);
+//            if(StringUtils.isEmpty(processDefinitionId))
+            String processDefinitionId = getProcessDefIdByDeploymentId(processInstId_or_deploymentId);
+
+            if(StringUtils.isNotEmpty(processDefinitionId)){
                 BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
                 if(Objects.nonNull(bpmnModel)){
                     Collection<FlowElement> flowElements = bpmnModel.getMainProcess().getFlowElements();
                     if(Objects.nonNull(flowElements)){
-                       result = flowElements.stream().filter(flowElement -> flowElement instanceof Task || flowElement instanceof Gateway).collect(Collectors.toList());
+                       result = flowElements.stream()
+                               .filter(flowElement -> flowElement instanceof Task || flowElement instanceof Gateway)
+                               .collect(Collectors.toList());
                     }
                 }
             }
@@ -660,7 +666,29 @@ public class DeployController {
 		}
     }
 
-    @ApiOperation(value = "根据流程id查询业务流程",notes = "会关联查询出其下的节点数据")
+    @ApiOperation(value = "根据流程实例id查询业务流程",notes = "会关联查询出其下的节点数据")
+    @ApiImplicitParams({ @ApiImplicitParam(
+            name = "flow_id",
+            value = "流程id",
+            dataType = "String",
+            paramType = "query",
+            example = "388d3160-3965-11ec-a578-3c970ef14df2"
+    ) })
+    @GetMapping("/flow/inst/{inst_id}")
+    public ResponseEntity<?> flowByInstanceId(@PathVariable String inst_id) {
+        try{
+            String deploymentId = getDeploymentIdByInstId(inst_id);
+
+            return ResponseResult.success("请求成功", flowById(deploymentId)).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @ApiOperation(value = "根据流程部署id查询业务流程",notes = "会关联查询出其下的节点数据")
     @ApiImplicitParams({ @ApiImplicitParam(
             name = "flow_id",
             value = "流程id",
@@ -728,7 +756,7 @@ public class DeployController {
                 pi.setInstanceId(processInstance.getId());
                 pi.setCreateTime(processInstance.getStartTime().getTime()+"");
                 pi.setCurrentNodeName(actTask.getName());
-                pi.setCurrentNodeId(actTask.getId());
+                pi.setCurrentNodeId(actTask.getTaskDefinitionKey());
                 pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
 
                 String isActiveStr = "完成";
@@ -773,31 +801,36 @@ public class DeployController {
     }
 
     /**
-     * 根据流程id获取流程定义id
+     * 根据流程实例id获取流程定义id
      *
-     * @param process_id 
+     * @param processInstanceId
      * @return java.lang.String
      * @author apr
      * @date 2021/10/27 14:43
      */
-    private String getProcessDefIdByProcessId(String process_id){
+    private String getDeploymentIdByInstId(String processInstanceId){
+        ProcessInstance processInstance = runtimeService.createProcessInstanceQuery().processInstanceId(processInstanceId).singleResult();
+        return Objects.isNull(processInstance) ? null : processInstance.getDeploymentId();
+    }
+
+    /**
+     * 根据部署id获取流程定义id
+     *
+     * @param deploymentId
+     * @return java.lang.String
+     * @author apr
+     * @date 2021/10/27 14:43
+     */
+    private String getProcessDefIdByDeploymentId(String deploymentId){
            List<ProcessDefinition> list = processEngine.getRepositoryService()//与流程定义和部署对象相关的Service
-                    .createProcessDefinitionQuery()//创建一个流程定义查询
-                    /*指定查询条件,where条件*/
-                    .deploymentId(process_id)//使用部署对象ID查询
-                    //.processDefinitionId(processDefinitionId)//使用流程定义ID查询
-                    //.processDefinitionKey(processDefinitionKey)//使用流程定义的KEY查询
-                    //.processDefinitionNameLike(processDefinitionNameLike)//使用流程定义的名称模糊查询
-                    /*排序*/
-                    //.orderByProcessDefinitionVersion().asc()//按照版本的升序排列
-                    //.orderByProcessDefinitionName().desc()//按照流程定义的名称降序排列
-                    .list();//返回一个集合列表，封装流程定义
-                    //.singleResult();//返回唯一结果集
-                    //.count();//返回结果集数量
-                    //.listPage(firstResult, maxResults)//分页查询
+                    .createProcessDefinitionQuery()
+                    .deploymentId(deploymentId)
+                    .list();
 
             if(list==null || list.isEmpty() || list.get(0)==null)
                 return null;
+
             return list.get(0).getId();
     }
+
 }
