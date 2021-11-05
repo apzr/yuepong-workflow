@@ -260,6 +260,8 @@ public class TaskController {
 
                 if(Operations.APPROVE.getCode().equals(param.getCommand())){
                     taskService.addComment(current.getId(), processInstanceId, Operations.APPROVE.getMsg());
+                    HashMap<String, Object> variables = new HashMap<>(1);
+                    variables.put("custom", "customVariable");
                     taskService.complete(current.getId());
 
                     //自定义表Task记录表表插入一条新的记录
@@ -277,7 +279,8 @@ public class TaskController {
                     currentNode.setId(startNodeId);
                     currentNode.setHId(lastNode.getHId());
                     current = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
-                    currentNode.setNode(current.getTaskDefinitionKey());
+                    if(Objects.nonNull(current))
+                        currentNode.setNode(current.getTaskDefinitionKey());
                     currentNode.setUser(Optional.ofNullable(current.getAssignee()).orElse(""));
                     currentNode.setRecord(param.getOpinion());
                     currentNode.setOpinion(Operations.APPROVE.getCode());
@@ -288,11 +291,11 @@ public class TaskController {
                     sysTaskExtMapper.insert(currentNode);
                 } else if(Operations.CANCEL.getCode().equals(param.getCommand())){
                     //TODO: 流程任务取消=直接走到最后一个节点执行结束
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码, 取消任务还未实现", param).response();
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "取消任务还未实现", param).response();
                 } else if(Operations.REJECT.getCode().equals(param.getCommand())){
                     //自定义表Task记录表表插入一条新的记录
                     LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
-                    lambdaQuery.eq(SysTask::getTaskId, "instance_id");
+                    lambdaQuery.eq(SysTask::getTaskId, processInstanceId);
                     SysTask task = sysTaskMapper.selectOne(lambdaQuery);
                     //获取当前最新节点ID
                     LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
@@ -306,7 +309,9 @@ public class TaskController {
 //                    current = taskService.createTaskQuery().taskId(currentTaskId).singleResult();
 //                    taskService.deleteTask(currentTaskId);
 
-                    SysTaskExt currentNodeNew = tasksList.get(1);//倒数第二个节点
+                    // 倒数第二个节点
+                    // TODO:这个倒数第二个节点这么用的话回退一次再回退一次会出错?是否应该取act的上个节点
+                    SysTaskExt currentNodeNew = tasksList.get(1);
                     String currentTaskIdNew = currentNodeNew.getNode();
                     Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
                     List<FlowElement> currentElement = allNodes.stream().filter(node -> node.getId().equals(currentTaskIdNew)).collect(Collectors.toList());
@@ -375,36 +380,38 @@ public class TaskController {
             if(Objects.nonNull(customUserTasks) && !customUserTasks.isEmpty()){
                 customUserTasks.stream().forEach(customUserTask -> {
                     List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).list();
-                    Task actTask = actTasks.get(0);
+                    if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                        Task actTask = actTasks.get(0);
                         //.taskId(actTask.getId())
-                    List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                                .createHistoricVariableInstanceQuery()
-                                .processInstanceId(actTask.getProcessInstanceId())
-                                //.taskId(actTask.getId())
-                                .variableName("userKey")
-                                .list();
-                    String userKey = "无";
-                    if(Objects.nonNull(varList) && !varList.isEmpty()){
-                        userKey = String.valueOf(varList.get(0).getValue());
-                    }
+                        List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                                    .createHistoricVariableInstanceQuery()
+                                    .processInstanceId(actTask.getProcessInstanceId())
+                                    //.taskId(actTask.getId())
+                                    .variableName("userKey")
+                                    .list();
+                        String userKey = "无";
+                        if(Objects.nonNull(varList) && !varList.isEmpty()){
+                            userKey = String.valueOf(varList.get(0).getValue());
+                        }
 
-                    LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
-                    taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
-                    SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+                        LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+                        taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
+                        SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
 
-                    if(Objects.nonNull(actTask)){
-                        TaskTodo tt = new TaskTodo(
-                            actTask.getId(),
-                            actTask.getProcessInstanceId(),
-                            actTask.getName()==null?customUserTask.getNode():actTask.getName(),
-                            customUserTask.getOperation(),
-                            userKey,
-                            actTask.getCreateTime().getTime()+"",
-                            System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
-                            sysTask
-                        );
+                        if(Objects.nonNull(actTask)){
+                            TaskTodo tt = new TaskTodo(
+                                actTask.getId(),
+                                actTask.getProcessInstanceId(),
+                                actTask.getName()==null?customUserTask.getNode():actTask.getName(),
+                                customUserTask.getOperation(),
+                                userKey,
+                                actTask.getCreateTime().getTime()+"",
+                                System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
+                                sysTask
+                            );
 
-                        tasks.add(tt);
+                            tasks.add(tt);
+                        }
                     }
                 });
 

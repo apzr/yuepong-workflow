@@ -751,44 +751,44 @@ public class DeployController {
             List<HistoricProcessInstance> instanceHistoryList = historyService.createHistoricProcessInstanceQuery().list();
             instanceHistoryList.stream().forEach(processInstance -> {
                 org.activiti.engine.task.Task actTask = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
-
-                ProcessInstanceDTO pi = new ProcessInstanceDTO();
-                pi.setInstanceId(processInstance.getId());
-                pi.setCreateTime(processInstance.getStartTime().getTime()+"");
-                pi.setCurrentNodeName(actTask.getName());
-                pi.setCurrentNodeId(actTask.getTaskDefinitionKey());
-                pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
-
-                String isActiveStr = "完成";
                 if(Objects.nonNull(actTask)){
-                    isActiveStr = actTask.isSuspended() ? "挂起" : "运行";
+                    ProcessInstanceDTO pi = new ProcessInstanceDTO();
+                    pi.setInstanceId(processInstance.getId());
+                    pi.setCreateTime(processInstance.getStartTime().getTime()+"");
+                    pi.setCurrentNodeName(actTask.getName());
+                    pi.setCurrentNodeId(actTask.getTaskDefinitionKey());
+                    pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
+
+                    String isActiveStr = "完成";
+                    if(Objects.nonNull(actTask)){
+                        isActiveStr = actTask.isSuspended() ? "挂起" : "运行";
+                    }
+                    pi.setStatus(isActiveStr);
+
+                    List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                                .createHistoricVariableInstanceQuery()
+                                .processInstanceId(processInstance.getId())
+                                //.taskId(actTask.getId())
+                                .variableName("userKey")
+                                .list();
+                    String userKey = "无";
+                    if(Objects.nonNull(varList) && !varList.isEmpty()){
+                        userKey = String.valueOf(varList.get(0).getValue());
+                    }
+                    pi.setCreator(userKey);
+
+                    LambdaQueryWrapper<SysFlowExt> flowCondition = new LambdaQueryWrapper<>();
+                    flowCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
+                    SysFlowExt sysFlow = sysFlowExtMapper.selectOne(flowCondition);
+                    pi.setCurrentAssign(sysFlow.getOperation());
+
+                    LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+                    taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
+                    SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+                    pi.setHeader(sysTask);
+
+                    instanceDTOS.add(pi);
                 }
-                pi.setStatus(isActiveStr);
-
-                List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                            .createHistoricVariableInstanceQuery()
-                            .processInstanceId(processInstance.getId())
-                            //.taskId(actTask.getId())
-                            .variableName("userKey")
-                            .list();
-                String userKey = "无";
-                if(Objects.nonNull(varList) && !varList.isEmpty()){
-                    userKey = String.valueOf(varList.get(0).getValue());
-                }
-                pi.setCreator(userKey);
-
-                LambdaQueryWrapper<SysFlowExt> flowCondition = new LambdaQueryWrapper<>();
-                flowCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
-                SysFlowExt sysFlow = sysFlowExtMapper.selectOne(flowCondition);
-                pi.setCurrentAssign(sysFlow.getOperation());
-
-                LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
-                taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
-                SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
-                pi.setHeader(sysTask);
-
-                instanceDTOS.add(pi);
-
             });
 
             return ResponseResult.success("请求成功", instanceDTOS).response();
