@@ -9,7 +9,8 @@ package com.yuepong.workflow.utils;
  * @date 2021/10/28 13:56:56
  **/
 public enum Operations{
-    APPROVE{
+
+    APPROVE{//next
         public String getMsg(){
             return "同意";
         }
@@ -17,22 +18,31 @@ public enum Operations{
             return "1";
         }
     },
-    CANCEL{
+    RECALL{//prev
         public String getMsg(){
-            return "作废";
+            return "撤回";
         }
         public String getCode(){
             return "2";
         }
     },
-    REJECT{
+    REJECT{//start
         public String getMsg(){
             return "驳回";
         }
         public String getCode(){
             return "3";
         }
+    },
+    CANCEL{//end
+        public String getMsg(){
+            return "作废";
+        }
+        public String getCode(){
+            return "2";
+        }
     };
+
     public abstract String getMsg();//定义抽象方法
     public abstract String getCode();//定义抽象方法
 }

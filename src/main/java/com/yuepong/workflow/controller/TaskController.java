@@ -16,15 +16,19 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
+import org.activiti.api.runtime.model.impl.ProcessDefinitionImpl;
 import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricActivityInstance;
+import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
+import org.activiti.engine.impl.RepositoryServiceImpl;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
 import org.activiti.engine.impl.interceptor.CommandContext;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
+import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
 import org.activiti.engine.impl.util.ProcessDefinitionUtil;
@@ -244,121 +248,225 @@ public class TaskController {
     @PostMapping("task/complete")
     @ApiOperation(value = "完成当前节点的任务", notes = "完成当前节点的任务")
     public ResponseEntity<?> taskComplete(@RequestBody TaskCompleteParam param) {
+        boolean isLast = false;
+
         try{
-            //0.s_sys_task_h中的s_id找到对应数据的task_id作为process
-            LambdaQueryWrapper<SysTask> condition = new QueryWrapper<SysTask>().lambda();
-            condition.eq(SysTask::getSId, param.getDataId());
-            List<SysTask> taskHeads = sysTaskMapper.selectList(condition);
+            //0. 获取任务头信息
+            List<SysTask> taskHeads = sysTaskMapper.selectBySId(param.getDataId());
             if(Objects.isNull(taskHeads) || taskHeads.isEmpty())
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到实例ID", param).response();
-            //1获取节点信息
-            String processInstanceId = taskHeads.get(0).getTaskId();
+
+            //1. 获取任务当前节点信息
+            SysTask taskHead = taskHeads.get(0);
+            String processInstanceId = taskHead.getTaskId();
             Task current = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
-            //2比对用户 TODO:此处应该比对我们数据库里边的User?
-            if(Objects.isNull(current.getAssignee()) || param.getUserId().equals(current.getAssignee())){//2.1通过: 执行完成
-                //String processInstanceId = current.getProcessInstanceId();
 
-                if(Operations.APPROVE.getCode().equals(param.getCommand())){
-                    taskService.addComment(current.getId(), processInstanceId, Operations.APPROVE.getMsg());
-                    HashMap<String, Object> variables = new HashMap<>(1);
-                    variables.put("custom", "customVariable");
-                    taskService.complete(current.getId());
+            if(Objects.isNull(current))
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到当前任务", param).response();
 
-                    //自定义表Task记录表表插入一条新的记录
-                    LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
-                    lambdaQuery.eq(SysTask::getTaskId, processInstanceId);
-                    SysTask task = sysTaskMapper.selectOne(lambdaQuery);
+            //2. 验证用户
+            if(!permissionCheck(param, current))
+                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "用户无权处理", null).response();
 
-                    LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
-                    lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
-                    lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
-                    SysTaskExt lastNode = sysTaskExtMapper.selectOne(lambdaQuery2);
+            //3. 处理任务
+            if(Operations.APPROVE.getCode().equals(param.getCommand())){//3.1 下一步
+                //3.1 完成系统任务节点
+                taskService.addComment(current.getId(), processInstanceId, Operations.APPROVE.getMsg());
+                HashMap<String, Object> variables = new HashMap<>(1);
+                variables.put("custom", "customVariable");
+                taskService.complete(current.getId());
 
-                    SysTaskExt currentNode = new SysTaskExt();
-                    String startNodeId = UUID.randomUUID().toString();
-                    currentNode.setId(startNodeId);
-                    currentNode.setHId(lastNode.getHId());
-                    current = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
-                    if(Objects.nonNull(current))
-                        currentNode.setNode(current.getTaskDefinitionKey());
-                    currentNode.setUser(Optional.ofNullable(current.getAssignee()).orElse(""));
-                    currentNode.setRecord(param.getOpinion());
-                    currentNode.setOpinion(Operations.APPROVE.getCode());
-                    Long now = System.currentTimeMillis();
-                    Long timeBetween = now - Long.parseLong(lastNode.getTime());
-                    currentNode.setTime(now.toString());
-                    currentNode.setOperTime(timeBetween.toString());
-                    sysTaskExtMapper.insert(currentNode);
-                } else if(Operations.CANCEL.getCode().equals(param.getCommand())){
-                    //TODO: 流程任务取消=直接走到最后一个节点执行结束
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "取消任务还未实现", param).response();
-                } else if(Operations.REJECT.getCode().equals(param.getCommand())){
-                    //自定义表Task记录表表插入一条新的记录
-                    LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
-                    lambdaQuery.eq(SysTask::getTaskId, processInstanceId);
-                    SysTask task = sysTaskMapper.selectOne(lambdaQuery);
-                    //获取当前最新节点ID
-                    LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
-                    lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
-                    lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 2");
-                    List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
-                    SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
-                    String currentTaskId = currentNode.getNode();
+                //3.2 自定义表Task记录表表插入一条新的记录
+                LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
+                lambdaQuery.eq(SysTask::getTaskId, processInstanceId);
+                SysTask task = sysTaskMapper.selectOne(lambdaQuery);
 
-                    //删除最新节点任务
-//                    current = taskService.createTaskQuery().taskId(currentTaskId).singleResult();
-//                    taskService.deleteTask(currentTaskId);
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
+                lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
+                SysTaskExt lastNode = sysTaskExtMapper.selectOne(lambdaQuery2);
 
-                    // 倒数第二个节点
-                    // TODO:这个倒数第二个节点这么用的话回退一次再回退一次会出错?是否应该取act的上个节点
-                    SysTaskExt currentNodeNew = tasksList.get(1);
-                    String currentTaskIdNew = currentNodeNew.getNode();
-                    Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
-                    List<FlowElement> currentElement = allNodes.stream().filter(node -> node.getId().equals(currentTaskIdNew)).collect(Collectors.toList());
-                    FlowElement element = currentElement.get(0);
-                    //获取目标节点定义
-                    //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
-                    //删除当前运行任务
-                    String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTaskId));
-                    //流程执行到来源节点
-                    processEngine.getManagementService().executeCommand(new JumpCommand((FlowNode)element, executionEntityId));
+                SysTaskExt currentNode = new SysTaskExt();
+                String startNodeId = UUID.randomUUID().toString();
+                currentNode.setId(startNodeId);
+                currentNode.setHId(lastNode.getHId());
+                current = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+                if(Objects.nonNull(current))
+                    currentNode.setNode(current.getTaskDefinitionKey());
+                currentNode.setUser(Optional.ofNullable(current.getAssignee()).orElse(""));
+                currentNode.setRecord(param.getOpinion());
+                currentNode.setOpinion(Operations.APPROVE.getCode());
+                Long now = System.currentTimeMillis();
+                Long timeBetween = now - Long.parseLong(lastNode.getTime());
+                currentNode.setTime(now.toString());
+                currentNode.setOperTime(timeBetween.toString());
 
-                    //自定义表2: 开始
-                    SysTaskExt newNode = new SysTaskExt();
-                    String newNodeId = UUID.randomUUID().toString();
-                    newNode.setId(newNodeId);
-                    newNode.setHId(currentNode.getHId());
-                    newNode.setNode(element.getId());
-                    newNode.setUser(param.getUserId());
-                    newNode.setRecord(Operations.REJECT.getMsg());
-                    newNode.setOpinion(Operations.REJECT.getCode());
-                    Long now = System.currentTimeMillis();
-                    Long timeBetween = now - Long.parseLong(currentNode.getTime());
-                    newNode.setTime(now.toString());
-                    newNode.setOperTime(timeBetween.toString());
-                    sysTaskExtMapper.insert(newNode);
+                sysTaskExtMapper.insert(currentNode);
 
-                    //return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码, 只能传同意", param.getCommand()).response();
-                } else {
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码", param.getCommand()).response();
-                }
+            } else if(Operations.RECALL.getCode().equals(param.getCommand())){//3.2 上一步
+                List<SysTask> tasks = sysTaskMapper.selectByTaskId(processInstanceId);
+                if(Objects.isNull(tasks) || tasks.isEmpty())
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到系统任务信息", processInstanceId).response();
+                SysTask task = tasks.get(0);
 
-                return ResponseResult.success("请求成功", null).response();
-            }else{//2.2不通过: 报错
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "操作用户不匹配", null).response();
+                //获取当前最新节点ID
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
+                lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+                SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
+                String currentTaskDefKey = currentNode.getNode();
+                Task currentTask = taskService.createTaskQuery().taskDefinitionKey(currentTaskDefKey).singleResult();
+
+                Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
+
+                List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(currentTask.getTaskDefinitionKey())).collect(Collectors.toList());
+                FlowNode currentElement = (FlowNode)currentElements.get(0);
+                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getTargetFlowElement();//上一个
+
+                //获取目标节点定义
+                //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
+                //删除当前运行任务
+                String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
+                //流程执行到来源节点
+                processEngine.getManagementService().executeCommand(new JumpCommand((FlowNode)prevNode, executionEntityId));
+
+                //自定义表Task记录表表插入一条新的记录
+                SysTaskExt newNode = new SysTaskExt();
+                String newNodeId = UUID.randomUUID().toString();
+                newNode.setId(newNodeId);
+                newNode.setHId(currentNode.getHId());
+                newNode.setNode(prevNode.getId());
+                newNode.setUser(param.getUserId());
+                newNode.setRecord(Operations.REJECT.getMsg());
+                newNode.setOpinion(Operations.REJECT.getCode());
+                Long now = System.currentTimeMillis();
+                Long timeBetween = now - Long.parseLong(currentNode.getTime());
+                newNode.setTime(now.toString());
+                newNode.setOperTime(timeBetween.toString());
+                sysTaskExtMapper.insert(newNode);
+            } else if(Operations.REJECT.getCode().equals(param.getCommand())){//3.3 起点
+                List<SysTask> tasks = sysTaskMapper.selectByTaskId(processInstanceId);
+                if(Objects.isNull(tasks) || tasks.isEmpty())
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到系统任务信息", processInstanceId).response();
+                SysTask task = tasks.get(0);
+
+                //获取当前最新节点ID
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
+                lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+                SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
+                String currentTaskDefKey = currentNode.getNode();
+                Task currentTask = taskService.createTaskQuery().taskDefinitionKey(currentTaskDefKey).singleResult();
+
+                Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
+
+                List<FlowElement> startElement = allNodes.stream().filter(node -> node instanceof StartEvent).collect(Collectors.toList());
+                FlowNode startTaskNode = (FlowNode)startElement.get(0);
+                FlowElement firstNode = startTaskNode.getOutgoingFlows().get(0).getTargetFlowElement();//第一个
+
+                //获取目标节点定义
+                //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
+                //删除当前运行任务
+                String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
+                //流程执行到来源节点//TODO:org.activiti.engine.ActivitiException: 操作错误，目标节点没有来源连线
+                processEngine.getManagementService().executeCommand(new JumpCommand((FlowNode)firstNode, executionEntityId));
+
+                //自定义表Task记录表表插入一条新的记录
+                SysTaskExt newNode = new SysTaskExt();
+                String newNodeId = UUID.randomUUID().toString();
+                newNode.setId(newNodeId);
+                newNode.setHId(currentNode.getHId());
+                newNode.setNode(startTaskNode.getId());
+                newNode.setUser(param.getUserId());
+                newNode.setRecord(Operations.REJECT.getMsg());
+                newNode.setOpinion(Operations.REJECT.getCode());
+                Long now = System.currentTimeMillis();
+                Long timeBetween = now - Long.parseLong(currentNode.getTime());
+                newNode.setTime(now.toString());
+                newNode.setOperTime(timeBetween.toString());
+                sysTaskExtMapper.insert(newNode);
+            } else if(Operations.CANCEL.getCode().equals(param.getCommand())){//3.4 终点
+                List<SysTask> tasks = sysTaskMapper.selectByTaskId(processInstanceId);
+                if(Objects.isNull(tasks) || tasks.isEmpty())
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到系统任务信息", processInstanceId).response();
+                SysTask task = tasks.get(0);
+
+                //获取当前最新节点ID
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
+                lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+                SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
+                String currentTaskDefKey = currentNode.getNode();
+                Task currentTask = taskService.createTaskQuery().taskDefinitionKey(currentTaskDefKey).singleResult();
+
+                Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
+
+                List<FlowElement> startElement = allNodes.stream().filter(node -> node instanceof EndEvent).collect(Collectors.toList());
+                FlowElement endTaskNode = startElement.get(0);
+
+                //获取目标节点定义
+                //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
+                //删除当前运行任务
+                String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
+                //流程执行到来源节点
+                processEngine.getManagementService().executeCommand(new JumpCommand((FlowNode)endTaskNode, executionEntityId));
+
+                //自定义表Task记录表表插入一条新的记录
+                SysTaskExt newNode = new SysTaskExt();
+                String newNodeId = UUID.randomUUID().toString();
+                newNode.setId(newNodeId);
+                newNode.setHId(currentNode.getHId());
+                newNode.setNode(endTaskNode.getId());
+                newNode.setUser(param.getUserId());
+                newNode.setRecord(Operations.REJECT.getMsg());
+                newNode.setOpinion(Operations.REJECT.getCode());
+                Long now = System.currentTimeMillis();
+                Long timeBetween = now - Long.parseLong(currentNode.getTime());
+                newNode.setTime(now.toString());
+                newNode.setOperTime(timeBetween.toString());
+                sysTaskExtMapper.insert(newNode);
+            }  else {
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码", param.getCommand()).response();
             }
-            //待确认:是否需要
-            // 3查询下一节点的下一节点(outgoing)是否为网关
-                //3.1是: 比对我们自己记录的条件
-                    //3.1.1通过: 执行完成
-                    //3.1.2不通过: 报错
-                //3.2否: 执行完成
+
+            return ResponseResult.success("处理完成", isLast).response();
 		} catch (BizException be) {
             return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
             ex.printStackTrace();
 			return ResponseResult.error(ex.getMessage()).response();
 		}
+    }
+
+    /**
+     * 获取当前用户是否有处理该任务的权限
+     *
+     * @param param 
+     * @return boolean
+     * @author apr
+     * @date 2021/11/9 9:16
+     */
+    private boolean permissionCheck(TaskCompleteParam param, Task currentTask) {
+        boolean match = false;
+
+        LambdaQueryWrapper<SysTaskExt> condition = new QueryWrapper<SysTaskExt>().lambda();
+        condition.eq(SysTaskExt::getNode, currentTask.getTaskDefinitionKey());
+        List<SysTaskExt> taskNodes = sysTaskExtMapper.selectList(condition);
+
+        if(Objects.nonNull(taskNodes) && !taskNodes.isEmpty()) {
+            SysTaskExt taskNode = taskNodes.get(0);
+            String type = taskNode.getUserType();
+            if("user".equals(type)){
+                match = param.getUserId().equals(taskNode.getUser());
+            }else if("role".equals(type)){
+                match = Arrays.asList(param.getRole()).contains(taskNode.getUser());
+            }
+        }
+
+        return match;
     }
 
     @ApiOperation(value = "查询当前用户的任务", notes = "查询当前用户的任务")
@@ -558,19 +666,9 @@ public class TaskController {
      */
     private String getProcessDefIdByProcessId(String process_id){
            List<ProcessDefinition> list = processEngine.getRepositoryService()//与流程定义和部署对象相关的Service
-                    .createProcessDefinitionQuery()//创建一个流程定义查询
-                    /*指定查询条件,where条件*/
-                    .deploymentId(process_id)//使用部署对象ID查询
-                    //.processDefinitionId(processDefinitionId)//使用流程定义ID查询
-                    //.processDefinitionKey(processDefinitionKey)//使用流程定义的KEY查询
-                    //.processDefinitionNameLike(processDefinitionNameLike)//使用流程定义的名称模糊查询
-                    /*排序*/
-                    //.orderByProcessDefinitionVersion().asc()//按照版本的升序排列
-                    //.orderByProcessDefinitionName().desc()//按照流程定义的名称降序排列
-                    .list();//返回一个集合列表，封装流程定义
-                    //.singleResult();//返回唯一结果集
-                    //.count();//返回结果集数量
-                    //.listPage(firstResult, maxResults)//分页查询
+                    .createProcessDefinitionQuery()
+                    .deploymentId(process_id)
+                    .list();
 
             if(list==null || list.isEmpty() || list.get(0)==null)
                 return null;
@@ -625,4 +723,5 @@ public class TaskController {
 			return null;
 		}
 	}
+
 }

@@ -17,4 +17,11 @@
         flow_id,
         route
     </sql>
+
+    <select id="selectByTaskId" resultType="com.yuepong.workflow.dto.SysTask">
+        select * from s_sys_task_h where task_id = #{tid}
+    </select>
+    <select id="selectBySId" resultType="com.yuepong.workflow.dto.SysTask">
+        select * from s_sys_task_h where s_id = #{sid}
+    </select>
 </mapper>

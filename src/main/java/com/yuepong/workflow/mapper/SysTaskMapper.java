@@ -3,8 +3,11 @@ package com.yuepong.workflow.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yuepong.workflow.dto.SysTask;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 /**
  * SysFlowMapper
@@ -18,4 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public interface SysTaskMapper extends BaseMapper<SysTask> {
 
+    List<SysTask> selectByTaskId(@Param("tid") String tid);
+
+    List<SysTask> selectBySId(@Param("sid") String sid);
 }

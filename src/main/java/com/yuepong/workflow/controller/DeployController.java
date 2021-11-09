@@ -592,6 +592,9 @@ public class DeployController {
             lambdaQuery.eq(SysFlow::getFlowId, flow_id);
             SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
 
+            //执行激活前置条件判断
+
+
             LambdaQueryWrapper<SysFlow> lambdaQuery1 = new QueryWrapper<SysFlow>().lambda();
             lambdaQuery.eq(SysFlow::getSysModel, flow.getSysModel());
             List<SysFlow> flowListSameType = sysFlowMapper.selectList(lambdaQuery1);
