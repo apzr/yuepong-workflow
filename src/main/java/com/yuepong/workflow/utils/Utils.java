@@ -4,25 +4,10 @@ import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.yuepong.jdev.exception.BizException;
-import org.activiti.api.runtime.model.impl.ProcessDefinitionImpl;
-import org.activiti.bpmn.model.FlowNode;
-import org.activiti.bpmn.model.SequenceFlow;
 import org.activiti.editor.constants.ModelDataJsonConstants;
-import org.activiti.engine.ActivitiException;
-import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
-import org.activiti.engine.impl.interceptor.Command;
-import org.activiti.engine.impl.interceptor.CommandContext;
-import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
-import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
-import org.activiti.engine.impl.persistence.entity.TaskEntity;
-import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
 import org.activiti.engine.repository.Model;
-import org.springframework.beans.factory.annotation.Autowired;
 
-import javax.annotation.Resource;
-import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Utils
