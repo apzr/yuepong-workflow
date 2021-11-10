@@ -15,6 +15,7 @@ import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
 import com.yuepong.workflow.utils.BpmnConverterUtil;
+import com.yuepong.workflow.utils.ProcessStatus;
 import com.yuepong.workflow.utils.RestMessgae;
 import com.yuepong.workflow.utils.Utils;
 import io.swagger.annotations.*;
@@ -293,14 +294,22 @@ public class DeployController {
             byte[] bpmnBytes = null;
             if(Objects.nonNull(modelQueryParam.getId()))
                 bpmnBytes = repositoryService.getModelEditorSource(modelQueryParam.getId());
-            else if(Objects.nonNull(modelQueryParam.getInstanceId())){
+            else if(Objects.nonNull(modelQueryParam.getInstanceId())) {
                 ProcessInstance instance = runtimeService.createProcessInstanceQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
-                Model model = repositoryService.createModelQuery().deploymentId(instance.getDeploymentId()).singleResult();
-                bpmnBytes = repositoryService.getModelEditorSource(model.getId());
+                if (Objects.nonNull(instance)) {
+                    Model model = repositoryService.createModelQuery().deploymentId(instance.getDeploymentId()).singleResult();
+                    bpmnBytes = repositoryService.getModelEditorSource(model.getId());
+                }else{
+                    HistoricProcessInstance instanceHistory = historyService.createHistoricProcessInstanceQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
+                    if (Objects.nonNull(instanceHistory)) {
+                        Model model = repositoryService.createModelQuery().deploymentId(instanceHistory.getDeploymentId()).singleResult();
+                        bpmnBytes = repositoryService.getModelEditorSource(model.getId());
+                    }
+                }
             }
 
             if(null == bpmnBytes) {
-                throw new BizException("模型数据为空");
+                throw new BizException("未获取到模型数据");
             }
             JsonNode modelNode = objectMapper.readTree(bpmnBytes);
             BpmnModel bpmnModel = new BpmnJsonConverter().convertToBpmnModel(modelNode);
@@ -455,7 +464,6 @@ public class DeployController {
 		}
     }
 
-
     @ApiOperation(value = "根据部署ID查询流程的节点列表", notes = "结果集会过滤掉起始、连线等类型, 只返回任务节点和网关节点")
     @ApiImplicitParams({ @ApiImplicitParam(
             name = "deployment_id",
@@ -491,6 +499,37 @@ public class DeployController {
 
 			return ResponseResult.success("请求成功", result).response();
 		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @GetMapping("process/active/{instance_id}")
+    @ApiOperation(value = "激活或挂起流程", notes = "激活或挂起流程")
+    public ResponseEntity<?> Suspended(@PathVariable String instance_id){
+        try {
+            ProcessInstance inst = runtimeService.createProcessInstanceQuery().processInstanceId(instance_id).singleResult();
+            ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().processDefinitionId(inst.getProcessDefinitionId()).singleResult();
+            boolean active = !processDefinition.isSuspended();
+
+            List<SysTask> tasks = sysTaskMapper.selectByTaskId(instance_id);
+            if(tasks==null || tasks.isEmpty()) {
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"未获取到流程", null).response();
+            }
+
+            SysTask task = tasks.get(0);
+            if(active){
+                repositoryService.suspendProcessDefinitionById(inst.getProcessDefinitionId());
+                task.setStatus(ProcessStatus.SUSPENDED.getCode());
+            }else{
+                repositoryService.activateProcessDefinitionById(inst.getProcessDefinitionId(),true,new Date());
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
+            }
+            sysTaskMapper.updateById(task);
+
+            return ResponseResult.success("请求成功", active).response();
+        } catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
 			return ResponseResult.error(ex.getMessage()).response();
@@ -596,7 +635,7 @@ public class DeployController {
 
 
             LambdaQueryWrapper<SysFlow> lambdaQuery1 = new QueryWrapper<SysFlow>().lambda();
-            lambdaQuery.eq(SysFlow::getSysModel, flow.getSysModel());
+            lambdaQuery.eq(SysFlow::getSysModel, flow.getSysModel());//TODO:系统错误
             List<SysFlow> flowListSameType = sysFlowMapper.selectList(lambdaQuery1);
             Optional.ofNullable(flowListSameType).orElse(new ArrayList<>()).forEach(sameTypeFlow -> {
                 Boolean disable = !sameTypeFlow.getId().equals(flow.getId());
@@ -783,7 +822,8 @@ public class DeployController {
                     LambdaQueryWrapper<SysFlowExt> flowCondition = new LambdaQueryWrapper<>();
                     flowCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
                     SysFlowExt sysFlow = sysFlowExtMapper.selectOne(flowCondition);
-                    pi.setCurrentAssign(sysFlow.getOperation());
+                    if(sysFlow!=null)
+                        pi.setCurrentAssign(sysFlow.getOperation());
 
                     LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
                     taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());

@@ -7,6 +7,7 @@
         <result column="s_id" property="sId" jdbcType="VARCHAR"/>
         <result column="task_id" property="taskId" jdbcType="VARCHAR"/>
         <result column="route" property="route" jdbcType="VARCHAR"/>
+        <result column="status" property="status" jdbcType="VARCHAR"/>
     </resultMap>
 
     <!-- 通用查询结果列 -->
@@ -15,7 +16,8 @@
         sys_model,
         sys_table,
         flow_id,
-        route
+        route,
+        status
     </sql>
 
     <select id="selectByTaskId" resultType="com.yuepong.workflow.dto.SysTask">

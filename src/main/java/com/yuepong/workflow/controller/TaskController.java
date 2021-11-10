@@ -11,6 +11,7 @@ import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
 import com.yuepong.workflow.utils.Operations;
+import com.yuepong.workflow.utils.ProcessStatus;
 import com.yuepong.workflow.utils.RestMessgae;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
@@ -220,6 +221,7 @@ public class TaskController {
             sysTask.setSId(tp.getDataId());
             sysTask.setTaskId(processInstance.getId());
             sysTask.setRoute(tp.getRoute());
+            sysTask.setStatus(ProcessStatus.ACTIVE.getCode());
             sysTaskMapper.insert(sysTask);
 
             //自定义表2: 开始
@@ -268,18 +270,25 @@ public class TaskController {
             if(!permissionCheck(param, current))
                  return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "用户无权处理", null).response();
 
+            LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
+            lambdaQuery.eq(SysTask::getTaskId, processInstanceId);
+            SysTask task = sysTaskMapper.selectOne(lambdaQuery);
+
+            //验证zhuangtai
+            if(!ProcessStatus.ACTIVE.getCode().equals(task.getStatus()))
+                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前流程不是激活状态", null).response();
+
             //3. 处理任务
             if(Operations.APPROVE.getCode().equals(param.getCommand())){//3.1 下一步
+                Task lastPoint = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
                 //3.1 完成系统任务节点
                 taskService.addComment(current.getId(), processInstanceId, Operations.APPROVE.getMsg());
-                HashMap<String, Object> variables = new HashMap<>(1);
-                variables.put("custom", "customVariable");
+                //HashMap<String, Object> variables = new HashMap<>(1);
+                //variables.put("custom", "customVariable");
                 taskService.complete(current.getId());
 
                 //3.2 自定义表Task记录表表插入一条新的记录
-                LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
-                lambdaQuery.eq(SysTask::getTaskId, processInstanceId);
-                SysTask task = sysTaskMapper.selectOne(lambdaQuery);
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
 
                 LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
                 lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
@@ -290,10 +299,8 @@ public class TaskController {
                 String startNodeId = UUID.randomUUID().toString();
                 currentNode.setId(startNodeId);
                 currentNode.setHId(lastNode.getHId());
-                current = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
-                if(Objects.nonNull(current))
-                    currentNode.setNode(current.getTaskDefinitionKey());
-                currentNode.setUser(Optional.ofNullable(current.getAssignee()).orElse(""));
+                currentNode.setNode(lastPoint.getTaskDefinitionKey());
+                currentNode.setUser(Optional.ofNullable(lastPoint.getAssignee()).orElse(""));
                 currentNode.setRecord(param.getOpinion());
                 currentNode.setOpinion(Operations.APPROVE.getCode());
                 Long now = System.currentTimeMillis();
@@ -303,26 +310,53 @@ public class TaskController {
 
                 sysTaskExtMapper.insert(currentNode);
 
-            } else if(Operations.RECALL.getCode().equals(param.getCommand())){//3.2 上一步
-                List<SysTask> tasks = sysTaskMapper.selectByTaskId(processInstanceId);
-                if(Objects.isNull(tasks) || tasks.isEmpty())
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到系统任务信息", processInstanceId).response();
-                SysTask task = tasks.get(0);
+                Task newPoint = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+                if(Objects.isNull(newPoint)){
+                    isLast = true;
 
+                    //任务头设置status
+                    task.setStatus(ProcessStatus.COMPLETE.getCode());
+
+                    //插入end节点;
+                    Collection<FlowElement> allNodes = getNodes(lastPoint.getProcessDefinitionId());
+                    List<FlowElement> currentElements = allNodes.stream().filter(node -> node instanceof EndEvent).collect(Collectors.toList());
+                    FlowNode currentElement = (FlowNode)currentElements.get(0);
+
+                    SysTaskExt endNode = new SysTaskExt();
+                    String endNodeId = UUID.randomUUID().toString();
+                    endNode.setId(endNodeId);
+                    endNode.setHId(lastNode.getHId());
+
+                    if(Objects.nonNull(lastPoint)){
+                        endNode.setNode(currentElement.getId());
+                    } else {
+                        endNode.setNode("end");
+                    }
+
+                    endNode.setUser("system");
+                    endNode.setRecord(param.getOpinion());
+                    endNode.setOpinion(Operations.APPROVE.getCode());
+                    endNode.setTime(System.currentTimeMillis()+"");
+                    endNode.setOperTime("0");
+
+                    sysTaskExtMapper.insert(endNode);
+                }
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
+            } else if(Operations.RECALL.getCode().equals(param.getCommand())){//3.2 上一步
                 //获取当前最新节点ID
                 LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
                 lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
                 lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
                 List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
                 SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
-                String currentTaskDefKey = currentNode.getNode();
-                Task currentTask = taskService.createTaskQuery().taskDefinitionKey(currentTaskDefKey).singleResult();
+                //String currentTaskDefKey = currentNode.getNode();
+                Task currentTask = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
 
                 Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
 
                 List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(currentTask.getTaskDefinitionKey())).collect(Collectors.toList());
                 FlowNode currentElement = (FlowNode)currentElements.get(0);
-                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getTargetFlowElement();//上一个
+                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();//上一个
 
                 //获取目标节点定义
                 //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
@@ -338,19 +372,16 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(prevNode.getId());
                 newNode.setUser(param.getUserId());
-                newNode.setRecord(Operations.REJECT.getMsg());
-                newNode.setOpinion(Operations.REJECT.getCode());
+                newNode.setRecord(param.getOpinion());
+                newNode.setOpinion(Operations.RECALL.getCode());
                 Long now = System.currentTimeMillis();
                 Long timeBetween = now - Long.parseLong(currentNode.getTime());
                 newNode.setTime(now.toString());
                 newNode.setOperTime(timeBetween.toString());
                 sysTaskExtMapper.insert(newNode);
-            } else if(Operations.REJECT.getCode().equals(param.getCommand())){//3.3 起点
-                List<SysTask> tasks = sysTaskMapper.selectByTaskId(processInstanceId);
-                if(Objects.isNull(tasks) || tasks.isEmpty())
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到系统任务信息", processInstanceId).response();
-                SysTask task = tasks.get(0);
 
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
+            } else if(Operations.REJECT.getCode().equals(param.getCommand())){//3.3 起点
                 //获取当前最新节点ID
                 LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
                 lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
@@ -358,7 +389,7 @@ public class TaskController {
                 List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
                 SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
                 String currentTaskDefKey = currentNode.getNode();
-                Task currentTask = taskService.createTaskQuery().taskDefinitionKey(currentTaskDefKey).singleResult();
+                Task currentTask = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
 
                 Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
 
@@ -380,19 +411,16 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(startTaskNode.getId());
                 newNode.setUser(param.getUserId());
-                newNode.setRecord(Operations.REJECT.getMsg());
+                newNode.setRecord(param.getOpinion());
                 newNode.setOpinion(Operations.REJECT.getCode());
                 Long now = System.currentTimeMillis();
                 Long timeBetween = now - Long.parseLong(currentNode.getTime());
                 newNode.setTime(now.toString());
                 newNode.setOperTime(timeBetween.toString());
                 sysTaskExtMapper.insert(newNode);
-            } else if(Operations.CANCEL.getCode().equals(param.getCommand())){//3.4 终点
-                List<SysTask> tasks = sysTaskMapper.selectByTaskId(processInstanceId);
-                if(Objects.isNull(tasks) || tasks.isEmpty())
-                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到系统任务信息", processInstanceId).response();
-                SysTask task = tasks.get(0);
 
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
+            } else if(Operations.CANCEL.getCode().equals(param.getCommand())){//3.4 终点
                 //获取当前最新节点ID
                 LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
                 lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
@@ -400,7 +428,7 @@ public class TaskController {
                 List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
                 SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
                 String currentTaskDefKey = currentNode.getNode();
-                Task currentTask = taskService.createTaskQuery().taskDefinitionKey(currentTaskDefKey).singleResult();
+                Task currentTask = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
 
                 Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
 
@@ -421,22 +449,56 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(endTaskNode.getId());
                 newNode.setUser(param.getUserId());
-                newNode.setRecord(Operations.REJECT.getMsg());
-                newNode.setOpinion(Operations.REJECT.getCode());
+                newNode.setRecord(param.getOpinion());
+                newNode.setOpinion(Operations.CANCEL.getCode());
                 Long now = System.currentTimeMillis();
                 Long timeBetween = now - Long.parseLong(currentNode.getTime());
                 newNode.setTime(now.toString());
                 newNode.setOperTime(timeBetween.toString());
                 sysTaskExtMapper.insert(newNode);
+
+                task.setStatus(ProcessStatus.SHUTDOWN.getCode());
             }  else {
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码", param.getCommand()).response();
             }
+
+            sysTaskMapper.updateById(task);
 
             return ResponseResult.success("处理完成", isLast).response();
 		} catch (BizException be) {
             return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
             ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @GetMapping("task/active/{instance_id}")
+    @ApiOperation(value = "激活或挂起流程实例", notes = "激活或挂起流程实例")
+    public ResponseEntity<?> Suspended(@PathVariable String instance_id){
+        try {
+            List<SysTask> tasks = sysTaskMapper.selectByTaskId(instance_id);
+            if(tasks==null || tasks.isEmpty()) {
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"未获取到流程", null).response();
+            }
+            SysTask task = tasks.get(0);
+
+            ProcessInstance processInstance = runtimeService.createProcessInstanceQuery().processInstanceId(instance_id).singleResult();
+            boolean active = !processInstance.isSuspended();
+
+            if(active){
+                runtimeService.suspendProcessInstanceById(instance_id);
+                task.setStatus(ProcessStatus.SUSPENDED.getCode());
+            }else{
+                runtimeService.activateProcessInstanceById(instance_id);
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
+            }
+            sysTaskMapper.updateById(task);
+
+            return ResponseResult.success("请求成功", active?"挂起":"恢复").response();
+        } catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
 			return ResponseResult.error(ex.getMessage()).response();
 		}
     }
@@ -452,17 +514,18 @@ public class TaskController {
     private boolean permissionCheck(TaskCompleteParam param, Task currentTask) {
         boolean match = false;
 
-        LambdaQueryWrapper<SysTaskExt> condition = new QueryWrapper<SysTaskExt>().lambda();
-        condition.eq(SysTaskExt::getNode, currentTask.getTaskDefinitionKey());
-        List<SysTaskExt> taskNodes = sysTaskExtMapper.selectList(condition);
+        LambdaQueryWrapper<SysFlowExt> condition = new QueryWrapper<SysFlowExt>().lambda();
+        condition.eq(SysFlowExt::getNode, currentTask.getTaskDefinitionKey());
+        List<SysFlowExt> taskNodes = sysFlowExtMapper.selectList(condition);
 
         if(Objects.nonNull(taskNodes) && !taskNodes.isEmpty()) {
-            SysTaskExt taskNode = taskNodes.get(0);
+            SysFlowExt taskNode = taskNodes.get(0);
             String type = taskNode.getUserType();
             if("user".equals(type)){
-                match = param.getUserId().equals(taskNode.getUser());
+                match = taskNode.getOperation().indexOf(param.getUserId())>-1;
             }else if("role".equals(type)){
-                match = Arrays.asList(param.getRole()).contains(taskNode.getUser());
+                //TODO:包含
+                match = Arrays.asList(param.getRole()).contains(taskNode.getOperation());
             }
         }
 
@@ -489,40 +552,40 @@ public class TaskController {
                 customUserTasks.stream().forEach(customUserTask -> {
                     List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).list();
                     if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
-                        Task actTask = actTasks.get(0);
-                        //.taskId(actTask.getId())
-                        List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                                    .createHistoricVariableInstanceQuery()
-                                    .processInstanceId(actTask.getProcessInstanceId())
-                                    //.taskId(actTask.getId())
-                                    .variableName("userKey")
-                                    .list();
-                        String userKey = "无";
-                        if(Objects.nonNull(varList) && !varList.isEmpty()){
-                            userKey = String.valueOf(varList.get(0).getValue());
-                        }
+                        actTasks.stream().forEach(actTask ->{
+                            //.taskId(actTask.getId())
+                            List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                                        .createHistoricVariableInstanceQuery()
+                                        .processInstanceId(actTask.getProcessInstanceId())
+                                        //.taskId(actTask.getId())
+                                        .variableName("userKey")
+                                        .list();
+                            String userKey = "无";
+                            if(Objects.nonNull(varList) && !varList.isEmpty()){
+                                userKey = String.valueOf(varList.get(0).getValue());
+                            }
 
-                        LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
-                        taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
-                        SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+                            LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+                            taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
+                            SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
 
-                        if(Objects.nonNull(actTask)){
-                            TaskTodo tt = new TaskTodo(
-                                actTask.getId(),
-                                actTask.getProcessInstanceId(),
-                                actTask.getName()==null?customUserTask.getNode():actTask.getName(),
-                                customUserTask.getOperation(),
-                                userKey,
-                                actTask.getCreateTime().getTime()+"",
-                                System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
-                                sysTask
-                            );
+                            if(Objects.nonNull(actTask)){
+                                TaskTodo tt = new TaskTodo(
+                                    actTask.getId(),
+                                    actTask.getProcessInstanceId(),
+                                    actTask.getName()==null?customUserTask.getNode():actTask.getName(),
+                                    customUserTask.getOperation(),
+                                    userKey,
+                                    actTask.getCreateTime().getTime()+"",
+                                    System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
+                                    sysTask
+                                );
 
-                            tasks.add(tt);
-                        }
+                                tasks.add(tt);
+                            }
+                        });
                     }
                 });
-
             }
 
             return ResponseResult.success("请求成功", tasks).response();
@@ -540,6 +603,7 @@ public class TaskController {
         try{
             LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
             lambdaQuery2.eq(SysTaskExt::getHId, id);
+            lambdaQuery2.orderByDesc(SysTaskExt::getTime);
             List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
 //            tasksList.stream().forEach(sysTaskExt ->{
 //                String act_id = sysTaskExt.getNode();

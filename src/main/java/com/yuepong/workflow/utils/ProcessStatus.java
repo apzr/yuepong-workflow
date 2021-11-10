@@ -8,33 +8,33 @@ package com.yuepong.workflow.utils;
  * @author apr
  * @date 2021/10/28 13:56:56
  **/
-public enum Operations{
+public enum ProcessStatus {
 
-    APPROVE{//next: 下一个节点
+    ACTIVE{
         public String getMsg(){
-            return "同意";
+            return "激活";
         }
         public String getCode(){
             return "1";
         }
     },
-    RECALL{//prev: 上一个节点
+    SUSPENDED{
         public String getMsg(){
-            return "撤回";
+            return "挂起";
         }
         public String getCode(){
             return "2";
         }
     },
-    REJECT{//start: 第一个节点
+    COMPLETE{
         public String getMsg(){
-            return "驳回";
+            return "完成";
         }
         public String getCode(){
             return "3";
         }
     },
-    CANCEL{//end:  最后一个节点
+    SHUTDOWN{
         public String getMsg(){
             return "作废";
         }

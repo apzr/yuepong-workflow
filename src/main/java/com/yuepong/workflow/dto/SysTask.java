@@ -33,4 +33,9 @@ public class SysTask {
      * 流程启动成功后返回的实例id
      */
     private String route;
+
+    /*
+     * 流程启动成功后返回的实例id
+     */
+    private String status;
 }
