@@ -24,4 +24,8 @@ public interface SysTaskMapper extends BaseMapper<SysTask> {
     List<SysTask> selectByTaskId(@Param("tid") String tid);
 
     List<SysTask> selectBySId(@Param("sid") String sid);
+
+    List<SysTask> selectActedBySId(@Param("sid") String sid);
+
+    List<SysTask> selectEnabledBySId(@Param("sid") String sid);
 }

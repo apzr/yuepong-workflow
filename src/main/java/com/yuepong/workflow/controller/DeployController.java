@@ -25,6 +25,7 @@ import org.activiti.bpmn.model.Process;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
+import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.persistence.entity.SuspensionState;
 import org.activiti.engine.repository.Deployment;
@@ -290,6 +291,7 @@ public class DeployController {
     @PostMapping("/search")
     public ResponseEntity<?> getModel(@RequestBody ModelQueryParam modelQueryParam) {
         try {
+            String currentNodeKey="";
 
             byte[] bpmnBytes = null;
             if(Objects.nonNull(modelQueryParam.getId()))
@@ -299,6 +301,11 @@ public class DeployController {
                 if (Objects.nonNull(instance)) {
                     Model model = repositoryService.createModelQuery().deploymentId(instance.getDeploymentId()).singleResult();
                     bpmnBytes = repositoryService.getModelEditorSource(model.getId());
+
+                    org.activiti.engine.task.Task currentTask = taskService.createTaskQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
+                    if(Objects.nonNull(currentTask)){
+                        currentNodeKey = currentTask.getTaskDefinitionKey();
+                    }
                 }else{
                     HistoricProcessInstance instanceHistory = historyService.createHistoricProcessInstanceQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
                     if (Objects.nonNull(instanceHistory)) {
@@ -335,7 +342,11 @@ public class DeployController {
             String bpmnString = new String(bpmnXml);
             String bpmnText = bpmnString.replaceAll("\\r|\\n","");
 
-			return ResponseResult.success("请求成功", bpmnText).response();
+            ModelQueryResult result = new ModelQueryResult();
+            result.setXml(bpmnText);
+            result.setNode(currentNodeKey);
+
+			return ResponseResult.success("请求成功", result).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {

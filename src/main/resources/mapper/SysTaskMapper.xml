@@ -26,4 +26,10 @@
     <select id="selectBySId" resultType="com.yuepong.workflow.dto.SysTask">
         select * from s_sys_task_h where s_id = #{sid}
     </select>
+    <select id="selectActedBySId" resultType="com.yuepong.workflow.dto.SysTask">
+        select * from s_sys_task_h where s_id = #{sid} and status in (1)
+    </select>
+    <select id="selectEnabledBySId" resultType="com.yuepong.workflow.dto.SysTask">
+        select * from s_sys_task_h where s_id = #{sid} and status in (1, 2)
+    </select>
 </mapper>

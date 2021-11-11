@@ -197,6 +197,10 @@ public class TaskController {
     @Transactional
     public ResponseEntity<?> taskCreate(@RequestBody TaskParam tp) {//"032bf875-99b0-4c85-91c0-e128fc759565"
         try{
+            List<SysTask> taskHeads = sysTaskMapper.selectEnabledBySId(tp.getDataId());
+            if(Objects.nonNull(taskHeads) && !taskHeads.isEmpty())
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前业务id已存在实例, 无法重复发起", tp).response();
+
             //启动流程
             LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
             lambdaQuery.eq(SysFlow::getSysModel, tp.getType());
@@ -254,7 +258,7 @@ public class TaskController {
 
         try{
             //0. 获取任务头信息
-            List<SysTask> taskHeads = sysTaskMapper.selectBySId(param.getDataId());
+            List<SysTask> taskHeads = sysTaskMapper.selectActedBySId(param.getDataId());
             if(Objects.isNull(taskHeads) || taskHeads.isEmpty())
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到实例ID", param).response();
 
@@ -309,8 +313,10 @@ public class TaskController {
                 currentNode.setOperTime(timeBetween.toString());
 
                 sysTaskExtMapper.insert(currentNode);
+                task.setStatus(ProcessStatus.ACTIVE.getCode());
 
                 Task newPoint = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+                //System.err.println("current node > "+ newPoint==null? "null":newPoint.getTaskDefinitionKey());
                 if(Objects.isNull(newPoint)){
                     isLast = true;
 
@@ -341,7 +347,7 @@ public class TaskController {
 
                     sysTaskExtMapper.insert(endNode);
                 }
-                task.setStatus(ProcessStatus.ACTIVE.getCode());
+
             } else if(Operations.RECALL.getCode().equals(param.getCommand())){//3.2 上一步
                 //获取当前最新节点ID
                 LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
@@ -622,6 +628,29 @@ public class TaskController {
 		}
     }
 
+    @ApiOperation(value = "查询是否开始流程")
+    @GetMapping("/task/startStatus/{data_id}")
+    public ResponseEntity<?> getStartStatusByDataId(@PathVariable String data_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+            boolean isStart = false;
+            List<SysTask> tasksHeader = sysTaskMapper.selectEnabledBySId(data_id);
+            if(Objects.nonNull(tasksHeader) && !tasksHeader.isEmpty()){
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, tasksHeader.get(0).getId());
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+
+                isStart =  (Objects.nonNull(tasksList) && tasksList.size() > 1);
+            }
+
+            return ResponseResult.success("请求成功", isStart).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), data_id).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+            return ResponseResult.obtain(CodeMsgs.SYSTEM_BASE_ERROR,ex.getMessage(), data_id).response();
+		}
+    }
+
     @ApiOperation(value = "sys_task条件查询")
     @PostMapping("/task/sys_task/search")
     public ResponseEntity<?> getSysTask(@RequestBody SysTaskQueryParam sysTask) {
@@ -778,7 +807,7 @@ public class TaskController {
 			//获取目标节点的来源连线
 			List<SequenceFlow> flows = flowElement.getIncomingFlows();
 			if(flows==null || flows.size()<1){
-				throw new ActivitiException("操作错误，目标节点没有来源连线");
+				throw new BizException("操作错误，目标节点没有来源连线");
 			}
 			//随便选一条连线来执行，时当前执行计划为，从连线流转到目标节点，实现跳转
 			ExecutionEntity executionEntity = commandContext.getExecutionEntityManager().findById(executionId);
