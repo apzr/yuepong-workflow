@@ -654,6 +654,18 @@ public class TaskController {
     }
 
     /**
+     * 根据条件获取路由走向节点
+     *
+     * @param aaa
+     * @return java.lang.String
+     * @author apr
+     * @date 2021/10/27 14:43
+     */
+    private String getNodeByGateway(String aaa){
+           return "nodeDefKey";
+   }
+
+    /**
 	 * 删除当前运行时任务命令
 	 * 这里继承了NeedsActiveTaskCmd，主要是很多跳转业务场景下，要求不能时挂起任务。可以直接继承Command即可
 	 */
