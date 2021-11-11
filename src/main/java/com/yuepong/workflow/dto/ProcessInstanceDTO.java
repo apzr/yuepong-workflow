@@ -1,7 +1,6 @@
 package com.yuepong.workflow.dto;
 
 import lombok.Data;
-import org.activiti.engine.task.Task;
 
 /**
  * ProcessInstanceList

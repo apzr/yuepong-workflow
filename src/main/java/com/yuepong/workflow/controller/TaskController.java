@@ -12,35 +12,22 @@ import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
 import com.yuepong.workflow.utils.Operations;
 import com.yuepong.workflow.utils.ProcessStatus;
-import com.yuepong.workflow.utils.RestMessgae;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
-import org.activiti.api.runtime.model.impl.ProcessDefinitionImpl;
 import org.activiti.bpmn.model.*;
-import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
-import org.activiti.engine.history.HistoricActivityInstance;
-import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
-import org.activiti.engine.impl.RepositoryServiceImpl;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
 import org.activiti.engine.impl.interceptor.CommandContext;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
-import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
-import org.activiti.engine.impl.util.ProcessDefinitionUtil;
 import org.activiti.engine.repository.ProcessDefinition;
-import org.activiti.engine.runtime.Execution;
 import org.activiti.engine.runtime.ProcessInstance;
-import org.activiti.engine.runtime.ProcessInstanceQuery;
-import org.activiti.engine.task.DelegationState;
-import org.activiti.engine.task.Event;
 import org.activiti.engine.task.Task;
-import org.apache.commons.lang3.time.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -83,108 +70,6 @@ public class TaskController {
 
     @Autowired
     HistoryService historyService;
-
-//    @PostMapping(path = "findTaskByAssignee")
-//    @ApiOperation(value = "根据流程assignee查询当前人的个人任务", notes = "根据流程assignee查询当前人的个人任务")
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(name = "assignee", value = "代理人（当前用户）", dataType = "String", paramType = "query", example = ""),
-//    })
-    public RestMessgae findTaskByAssignee(@RequestParam("assignee") String assignee) {
-        RestMessgae restMessgae = new RestMessgae();
-
-        //创建任务查询对象
-        List<Task> taskList;
-        try {
-            taskList = taskService.createTaskQuery()
-                    //指定个人任务查询
-                    .taskAssignee(assignee)
-                    .list();
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("查询失败", e.getMessage());
-            e.printStackTrace();
-            return restMessgae;
-        }
-
-        if (taskList != null && taskList.size() > 0) {
-            List<Map<String, String>> resultList = new ArrayList<>();
-            for (Task task : taskList) {
-                Map<String, String> resultMap = new HashMap<>(7);
-                /* 任务ID */
-                resultMap.put("taskID", task.getId());
-
-                /* 任务名称 */
-                resultMap.put("taskName", task.getName());
-
-                /* 任务的创建时间 */
-                resultMap.put("taskCreateTime", task.getCreateTime().toString());
-
-                /* 任务的办理人 */
-                resultMap.put("taskAssignee", task.getAssignee());
-
-                /* 流程实例ID */
-                resultMap.put("processInstanceId", task.getProcessInstanceId());
-
-                /* 执行对象ID */
-                resultMap.put("executionId", task.getExecutionId());
-
-                /* 流程定义ID */
-                resultMap.put("processDefinitionId", task.getProcessDefinitionId());
-                resultList.add(resultMap);
-            }
-            restMessgae = RestMessgae.success("查询成功", resultList);
-        } else {
-            restMessgae = RestMessgae.success("查询成功", null);
-        }
-
-        return restMessgae;
-    }
-
-//    @PostMapping(path = "completeTask")
-//    @ApiOperation(value = "完成任务", notes = "完成任务，任务进入下一个节点")
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(name = "taskId", value = "任务ID", dataType = "String", paramType = "query", example = ""),
-//            @ApiImplicitParam(name = "days", value = "请假天数", dataType = "int", paramType = "query", example = ""),
-//    })
-    public RestMessgae completeTask(@RequestParam("taskId") String taskId,
-                                    @RequestParam("days") int days) {
-
-        RestMessgae restMessgae ;
-
-        try {
-            HashMap<String, Object> variables = new HashMap<>(1);
-            variables.put("days", days);
-            taskService.complete(taskId, variables);
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("提交失败", e.getMessage());
-            e.printStackTrace();
-            return restMessgae;
-        }
-        restMessgae = RestMessgae.fail("提交成功", taskId);
-        return restMessgae;
-    }
-
-//    @PostMapping(path = "createTask")
-//    @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(name = "processId", value = "流程ID", dataType = "String", paramType = "query", example = ""),
-//    })
-    public RestMessgae createTask(@RequestParam("processId") String processId) {
-
-        RestMessgae restMessgae;
-        String taskId = "task_"+processId;
-
-        try {
-            Task task = taskService.newTask(taskId);
-            taskService.saveTask(task);
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("创建失败", e.getMessage());
-            e.printStackTrace();
-            return restMessgae;
-        }
-
-        restMessgae = RestMessgae.success("创建成功", null);
-        return restMessgae;
-    }
 
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
     @ApiImplicitParams({

@@ -16,7 +16,6 @@ import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
 import com.yuepong.workflow.utils.BpmnConverterUtil;
 import com.yuepong.workflow.utils.ProcessStatus;
-import com.yuepong.workflow.utils.RestMessgae;
 import com.yuepong.workflow.utils.Utils;
 import io.swagger.annotations.*;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
@@ -25,11 +24,8 @@ import org.activiti.bpmn.model.Process;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
-import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
-import org.activiti.engine.impl.persistence.entity.SuspensionState;
 import org.activiti.engine.repository.Deployment;
-import org.activiti.engine.repository.DeploymentBuilder;
 import org.activiti.engine.repository.Model;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
@@ -41,11 +37,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.zip.ZipInputStream;
 
 /**
  * @author Apr
@@ -86,86 +80,6 @@ public class DeployController {
 
     public DeployController(RepositoryService repositoryService) {
         this.repositoryService = repositoryService;
-    }
-
-//    @PostMapping(path = "deployBpmn")
-//    @ApiOperation(value = "根据bpmnName部署流程",notes = "根据bpmnName部署流程，需要bpmn/png两个文件")
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(name = "bpmnName",value = "设计的流程图名称",dataType = "String",paramType = "query",example = "myProcess")
-//    })
-    public RestMessgae deployBpmn(@RequestParam("bpmnName") String bpmnName){
-
-        RestMessgae restMessgae = new RestMessgae();
-        //创建一个部署对象
-        DeploymentBuilder deploymentBuilder = repositoryService.createDeployment().name("请假流程");
-        Deployment deployment = null;
-        try {
-            System.out.println(this.getClass().getResource("").getPath());
-            System.out.println(this.getClass().getResource("/").getPath());
-
-            deployment = deploymentBuilder
-                    .addClasspathResource("processes/"+bpmnName +".bpmn")
-                    .addClasspathResource("processes/"+bpmnName +".png")
-                    .deploy();
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("部署失败", e.getMessage());
-            e.printStackTrace();
-        }
-
-        if (Objects.nonNull(deployment)) {
-            Map<String, String> result = new HashMap<>(2);
-            result.put("deployID", deployment.getId());
-            result.put("deployName", deployment.getName());
-            restMessgae = RestMessgae.success("部署成功", result);
-        }
-        return restMessgae;
-    }
-
-//    @PostMapping(path = "deployZIP")
-//    @ApiOperation(value = "根据ZIP压缩包部署流程",notes = "根据ZIP压缩包部署流程")
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(name = "zipName",value = "设计的流程图和图片的压缩包名称",dataType = "String",paramType = "query",example = "myProcess")
-//    })
-    public RestMessgae deployZIP(@RequestParam("zipName") String zipName){
-        RestMessgae restMessgae = new RestMessgae();
-        Deployment deployment = null;
-        try {
-            InputStream in = this.getClass().getClassLoader().getResourceAsStream("processes/"+zipName+".zip");
-            ZipInputStream zipInputStream = new ZipInputStream(in);
-            deployment = repositoryService.createDeployment()
-                    .name("请假流程2")
-                    //指定zip格式的文件完成部署
-                    .addZipInputStream(zipInputStream)
-                    .deploy();//完成部署
-            zipInputStream.close();
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("部署失败", e.getMessage());
-        }
-        if (deployment != null) {
-            Map<String, String> result = new HashMap<>(2);
-            result.put("deployID", deployment.getId());
-            result.put("deployName", deployment.getName());
-            restMessgae = RestMessgae.success("部署成功", result);
-        }
-        return restMessgae;
-    }
-
-//    @PostMapping(path = "deleteProcess")
-//    @ApiOperation(value = "根据部署ID删除流程",notes = "根据部署ID删除流程")
-//    @ApiImplicitParams({
-//            @ApiImplicitParam(name = "deploymentId",value = "部署ID",dataType = "String",paramType = "query",example = "example")
-//    })
-    public RestMessgae deleteProcess(@RequestParam("deploymentId") String deploymentId){
-        RestMessgae restMessgae ;
-        try {
-            repositoryService.deleteDeployment(deploymentId);
-            restMessgae = RestMessgae.success("删除成功", null);
-        } catch (Exception e) {
-            restMessgae = RestMessgae.fail("删除失败", e.getMessage());
-            e.printStackTrace();
-        }
-
-        return  restMessgae;
     }
 
     @ApiOperation(value = "保存(modelId=-1)或编辑(modelId!=-1)模型", notes = "根据传入的xml文件生成一个新的模型或者绑定一个现有的模型")
