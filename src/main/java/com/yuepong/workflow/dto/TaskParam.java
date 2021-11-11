@@ -2,6 +2,8 @@ package com.yuepong.workflow.dto;
 
 import lombok.Data;
 
+import java.util.Map;
+
 /**
  * TaskParam
  * <p>
@@ -17,5 +19,6 @@ public class TaskParam {
     public String route;
     public String userId;
     public String dataId;
+    public Map<String, Object> conditions;
 
 }

@@ -17,6 +17,7 @@ import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.model.*;
+import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
@@ -27,6 +28,7 @@ import org.activiti.engine.impl.persistence.entity.TaskEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
+import org.activiti.engine.runtime.ProcessInstanceQuery;
 import org.activiti.engine.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -80,11 +82,11 @@ public class TaskController {
     })
     @PostMapping("/task/create")
     @Transactional
-    public ResponseEntity<?> taskCreate(@RequestBody TaskParam tp) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    public ResponseEntity<?> taskCreate(@RequestBody TaskParam tp) {
         try{
             List<SysTask> taskHeads = sysTaskMapper.selectEnabledBySId(tp.getDataId());
             if(Objects.nonNull(taskHeads) && !taskHeads.isEmpty())
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前业务id已存在实例, 无法重复发起", tp).response();
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前业务下已存在运行的流程实例, 无法重复发起", tp).response();
 
             //启动流程
             LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
@@ -92,15 +94,24 @@ public class TaskController {
             lambdaQuery.eq(SysFlow::getSysDisable, false);
             SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
             if(Objects.isNull(flow))
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "该业务未绑定或未激活流程", tp).response();
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前业务未绑定或未激活流程", tp).response();
 
-            HashMap<String, Object> variables=new HashMap<>(1);
-            variables.put("userKey", tp.getUserId());//发起人 存于act_hi_varinst 
-            String def_id = getProcessDefIdByProcessId(flow.getFlowId());//e8ac29e2-363b-11ec-b8d8-3c970ef14df2
+            String def_id = getProcessDefIdByProcessId(flow.getFlowId());
             if(Objects.isNull(def_id))
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到流程", tp).response();
-            //String processDefinitionKey="proc_def_key"+def_id;
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到流程定义信息", tp).response();
+
+
+            Map<String, Object> variables = Optional.ofNullable(tp.getConditions()).orElse(new HashMap<>());
+            variables.put("creator", tp.getUserId());//发起人
             ProcessInstance processInstance = runtimeService.startProcessInstanceById(def_id, tp.getType(), variables);//对某一个流程启用一个流程实例
+
+            LambdaQueryWrapper<SysFlowExt> lambdaQueryFlowExt = new QueryWrapper<SysFlowExt>().lambda();
+            lambdaQueryFlowExt.eq(SysFlowExt::getHId, flow.getId());
+            lambdaQueryFlowExt.isNotNull(SysFlowExt::getField);
+            lambdaQueryFlowExt.isNotNull(SysFlowExt::getConditions);
+            lambdaQueryFlowExt.isNotNull(SysFlowExt::getValue);
+            List<SysFlowExt> flowExtList = sysFlowExtMapper.selectList(lambdaQueryFlowExt);
+            initGateways(processInstance, flowExtList);
 
             //自定义表1
             SysTask sysTask = new SysTask();
@@ -172,8 +183,8 @@ public class TaskController {
                 Task lastPoint = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
                 //3.1 完成系统任务节点
                 taskService.addComment(current.getId(), processInstanceId, Operations.APPROVE.getMsg());
-                //HashMap<String, Object> variables = new HashMap<>(1);
-                //variables.put("custom", "customVariable");
+                HashMap<String, Object> variables = new HashMap<>(1);
+                variables.put("msg", "完成任务");
                 taskService.complete(current.getId());
 
                 //3.2 自定义表Task记录表表插入一条新的记录
@@ -201,7 +212,6 @@ public class TaskController {
                 task.setStatus(ProcessStatus.ACTIVE.getCode());
 
                 Task newPoint = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
-                //System.err.println("current node > "+ newPoint==null? "null":newPoint.getTaskDefinitionKey());
                 if(Objects.isNull(newPoint)){
                     isLast = true;
 
@@ -240,17 +250,14 @@ public class TaskController {
                 lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
                 List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
                 SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
-                //String currentTaskDefKey = currentNode.getNode();
                 Task currentTask = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
 
                 Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
 
                 List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(currentTask.getTaskDefinitionKey())).collect(Collectors.toList());
                 FlowNode currentElement = (FlowNode)currentElements.get(0);
-                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();//上一个
+                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();//FIXME:这里如果是汇聚点的话会造成只能回退到第0个元素来源
 
-                //获取目标节点定义
-                //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
                 //删除当前运行任务
                 String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
                 //流程执行到来源节点
@@ -288,11 +295,10 @@ public class TaskController {
                 FlowNode startTaskNode = (FlowNode)startElement.get(0);
                 FlowElement firstNode = startTaskNode.getOutgoingFlows().get(0).getTargetFlowElement();//第一个
 
-                //获取目标节点定义
-                //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
-                //删除当前运行任务
+                // 删除当前运行任务
                 String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
-                //流程执行到来源节点//TODO:org.activiti.engine.ActivitiException: 操作错误，目标节点没有来源连线
+                // 流程执行到来源节点
+                // TODO:org.activiti.engine.ActivitiException: 操作错误，目标节点没有来源连线
                 processEngine.getManagementService().executeCommand(new JumpCommand((FlowNode)firstNode, executionEntityId));
 
                 //自定义表Task记录表表插入一条新的记录
@@ -326,8 +332,6 @@ public class TaskController {
                 List<FlowElement> startElement = allNodes.stream().filter(node -> node instanceof EndEvent).collect(Collectors.toList());
                 FlowElement endTaskNode = startElement.get(0);
 
-                //获取目标节点定义
-                //FlowNode targetNode = (FlowNode)process.getFlowElement(element.getId());
                 //删除当前运行任务
                 String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
                 //流程执行到来源节点
@@ -653,17 +657,56 @@ public class TaskController {
             return list.get(0).getId();
     }
 
+
     /**
-     * 根据条件获取路由走向节点
+     * 发起流程是的变量：如网关条件, 发起人
      *
-     * @param aaa
-     * @return java.lang.String
+     * @param variables
+     * @param flowExtList
+     * @return void
      * @author apr
-     * @date 2021/10/27 14:43
+     * @date 2021/11/11 10:16
      */
-    private String getNodeByGateway(String aaa){
-           return "nodeDefKey";
-   }
+    private void initVariables(HashMap<String, Object> variables, List<SysFlowExt> flowExtList) {
+
+        flowExtList.stream().forEach(flowExt -> {
+            String[] condition = new String[]{ flowExt.getField(), flowExt.getConditions(), flowExt.getValue() };
+            variables.put(flowExt.getNode(), Arrays.toString(condition));
+        });
+
+    }
+
+    /**
+     * initGateways
+     *
+     * @param processInstance
+     * @param gateWayList
+     * @return void
+     * @author apr
+     * @date 2021/11/11 14:29
+     */
+    private void initGateways(ProcessInstance processInstance, List<SysFlowExt> gateWayList) {
+        try {
+            BpmnModel bpmnModel = repositoryService.getBpmnModel(processInstance.getProcessDefinitionId());
+            Process p = bpmnModel.getProcessById(processInstance.getProcessDefinitionKey());
+
+            gateWayList.stream().forEach(gateWay -> {
+                //System.out.println(gateWay.getNode()+"->"+gateWay.getNextNode() + "==>" +gateWay.getField()+gateWay.getConditions()+gateWay.getValue());
+                ExclusiveGateway metaGateway = (ExclusiveGateway) p.getFlowElement(gateWay.getNode());
+                //do sth.
+                List<SequenceFlow> lines = metaGateway.getOutgoingFlows();
+                lines.stream().filter(line -> line.getTargetRef().equals(gateWay.getNextNode()))
+                        .forEach(matchLine -> {
+                            //System.out.println("line: "+ matchLine.getSourceRef()+"->"+matchLine.getTargetRef()+"~exp: "+ matchLine.getConditionExpression());
+                            matchLine.setConditionExpression("${ " + gateWay.getField() + gateWay.getConditions() + gateWay.getValue() + " }");
+                            p.removeFlowElement(matchLine.getId());
+                            p.addFlowElement(matchLine);
+                        });
+            });
+        } catch (Exception e) {
+            System.out.println("gateway var failed");
+        }
+    }
 
     /**
 	 * 删除当前运行时任务命令

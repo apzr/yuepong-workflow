@@ -126,6 +126,9 @@ public class DeployController {
             }else{
                 model = repositoryService.getModel(modelId);
                 model.setVersion(model.getVersion()+1);
+
+                if(existsUnfinishedProcesses(model.getDeploymentId()))
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前模型存在未执行完的流程, 无法编辑", modelId).response();
             }
             Utils.initModel(model, jsonBpmnXml, objectMapper);
 
@@ -142,6 +145,19 @@ public class DeployController {
 		}
     }
 
+    /**
+     * 当前模型存在没有运行完的流程
+     *
+     * @param deploymentId
+     * @return boolean
+     * @author apr
+     * @date 2021/11/11 15:31
+     */
+    private boolean existsUnfinishedProcesses(String deploymentId) {
+        List<ProcessInstance> instanceList = runtimeService.createProcessInstanceQuery().deploymentId(deploymentId).list();
+        return Objects.nonNull(instanceList) && !instanceList.isEmpty();
+    }
+
     @ApiOperation(value = "根据模型ID执行部署(发布)",notes = "模型：Model, 模型表act_re_model")
     @ApiImplicitParams({ @ApiImplicitParam(
             name = "modelId",
@@ -156,7 +172,10 @@ public class DeployController {
 		try {
             List<Deployment> exist = repositoryService.createDeploymentQuery().deploymentKey(modelId).list();
 		    if(Objects.nonNull(exist) && !exist.isEmpty()){
-                throw new BizException("模型数据已经被部署过。");
+                exist.stream().forEach(deployment -> {
+                    //repositoryService.deleteDeployment(deployment.getId());
+                });
+                //throw new BizException("模型数据已经被部署过。");
             }
             // 获取模型
             Model modelData = repositoryService.getModel(modelId);
@@ -227,6 +246,8 @@ public class DeployController {
                         bpmnBytes = repositoryService.getModelEditorSource(model.getId());
                     }
                 }
+            }else if(Objects.nonNull(modelQueryParam.getDeploymentId())){
+                //TODO:自己查询xml
             }
 
             if(null == bpmnBytes) {
@@ -744,16 +765,17 @@ public class DeployController {
                     }
                     pi.setCreator(userKey);
 
+                    LambdaQueryWrapper<SysFlow> taskCondition = new LambdaQueryWrapper<>();
+                    taskCondition.eq(SysFlow::getDeploymentId, processInstance.getDeploymentId());
+                    SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+                    pi.setHeader(sysTask);
+
                     LambdaQueryWrapper<SysFlowExt> flowCondition = new LambdaQueryWrapper<>();
                     flowCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
                     SysFlowExt sysFlow = sysFlowExtMapper.selectOne(flowCondition);
                     if(sysFlow!=null)
                         pi.setCurrentAssign(sysFlow.getOperation());
 
-                    LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
-                    taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
-                    SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
-                    pi.setHeader(sysTask);
 
                     instanceDTOS.add(pi);
                 }

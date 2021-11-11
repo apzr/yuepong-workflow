@@ -34,14 +34,19 @@ public class SysFlow {
      */
     private String flowId;
 
-    public SysFlow(){
+    /*
+     * 部署id
+     */
+    private String deploymentId;
 
+    public SysFlow(){
     }
 
-    public SysFlow(String id, String sysModel, Boolean sysDisable, String flowId){
+    public SysFlow(String id, String sysModel, Boolean sysDisable, String flowId, String deploymentId){
         this.id = id;
         this.sysModel = sysModel;
         this.sysDisable = sysDisable;
         this.flowId = flowId;
+        this.deploymentId = deploymentId;
     }
 }
