@@ -15,6 +15,5 @@ public class ModelQueryParam {
 
     private String id;
     private String instanceId;
-    private String deploymentId;
 
 }

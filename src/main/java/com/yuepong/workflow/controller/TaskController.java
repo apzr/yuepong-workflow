@@ -96,7 +96,7 @@ public class TaskController {
             if(Objects.isNull(flow))
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前业务未绑定或未激活流程", tp).response();
 
-            String def_id = getProcessDefIdByProcessId(flow.getFlowId());
+            String def_id = getProcessDefIdByProcessId(flow.getDeploymentId());
             if(Objects.isNull(def_id))
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到流程定义信息", tp).response();
 

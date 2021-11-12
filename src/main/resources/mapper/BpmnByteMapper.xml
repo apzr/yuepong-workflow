@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.yuepong.workflow.mapper.BpmnByteMapper">
+    <!-- resultMap id="BaseResultMap" type="com.yuepong.workflow.dto.BpmnByte">
+        <id column="id_" property="id" jdbcType="VARCHAR"/>
+        <id column="rev_" property="rev" jdbcType="INTEGER"/>
+        <id column="name_" property="name" jdbcType="VARCHAR"/>
+        <id column="deployment_id_" property="deploymentId" jdbcType="VARCHAR"/>
+        <id column="bytes_" property="bytes" jdbcType="BLOB"/>
+        <id column="generated_" property="generated" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id_,
+        rev_,
+        name_,
+        deployment_id_,
+        bytes_,
+        generated_
+    </sql -->
+</mapper>
