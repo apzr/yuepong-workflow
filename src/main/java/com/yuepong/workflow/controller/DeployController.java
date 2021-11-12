@@ -427,13 +427,11 @@ public class DeployController {
             @ApiResponse(code=200500, message="业务处理失败"),
             @ApiResponse(code=500, message="系统错误")
     })
-    @GetMapping("/process/{processInstId_or_deploymentId}/nodes")
-    public ResponseEntity<?> processListNodes(@PathVariable String processInstId_or_deploymentId) {
+    @GetMapping("/process/{deploymentId}/nodes")
+    public ResponseEntity<?> processListNodes(@PathVariable String deploymentId) {
         try {
             List<FlowElement> result = new LinkedList();
-//            String processDefinitionId = getProcessDefIdByProcessInstId(processInstId_or_deploymentId);
-//            if(StringUtils.isEmpty(processDefinitionId))
-            String processDefinitionId = getProcessDefIdByDeploymentId(processInstId_or_deploymentId);
+            String processDefinitionId = getProcessDefIdByDeploymentId(deploymentId);
 
             if(StringUtils.isNotEmpty(processDefinitionId)){
                 BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
@@ -697,11 +695,12 @@ public class DeployController {
         try{
             LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
             lambdaQuery.eq(SysFlow::getDeploymentId, flow_id);
-            List<SysFlow> list = sysFlowMapper.selectList(lambdaQuery);
-            if(Objects.isNull(list)|| list.isEmpty()){
+            SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
+            if(Objects.isNull(flow)){
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"未查询到数据", null).response();
             }
-            SysFlow flow = list.get(0);
+
+            //TODO: flow.getId() -> model id -> version -1
             List<SysFlowExt> nodes = sysFlowExtMapper.findNodesByHID(flow.getId());
 
             SysModel model = new SysModel();
@@ -743,53 +742,6 @@ public class DeployController {
     public ResponseEntity<?> getInstanceList() {//"032bf875-99b0-4c85-91c0-e128fc759565"
         try{
             List<ProcessInstanceDTO> instanceDTOS = new ArrayList<>();
-
-           /* List<ProcessInstance> instanceList = runtimeService.createProcessInstanceQuery().list();
-            instanceList.stream().forEach(processInstance -> {
-                org.activiti.engine.task.Task actTask = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
-                if(Objects.nonNull(actTask)){
-                    ProcessInstanceDTO pi = new ProcessInstanceDTO();
-                    pi.setInstanceId(processInstance.getId());
-                    pi.setCreateTime(processInstance.getStartTime().getTime()+"");
-                    pi.setCurrentNodeName(actTask.getName());
-                    pi.setCurrentNodeId(actTask.getTaskDefinitionKey());
-                    pi.setEndTime("无");
-
-                    String isActiveStr = "完成";
-                    if(Objects.nonNull(actTask)){
-                        isActiveStr = actTask.isSuspended() ? "挂起" : "运行";
-                    }
-                    pi.setStatus(isActiveStr);
-
-                    List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                                .createHistoricVariableInstanceQuery()
-                                .processInstanceId(processInstance.getId())
-                                //.taskId(actTask.getId())
-                                .variableName("creator")
-                                .list();
-                    String creator = "无";
-                    if(Objects.nonNull(varList) && !varList.isEmpty()){
-                        creator = String.valueOf(varList.get(0).getValue());
-                    }
-                    pi.setCreator(creator);
-
-                    LambdaQueryWrapper<SysFlow> flowCondition = new LambdaQueryWrapper<>();
-                    flowCondition.eq(SysFlow::getDeploymentId, processInstance.getDeploymentId());
-                    SysFlow sysFlow = sysFlowMapper.selectOne(flowCondition);
-                    if(Objects.nonNull(sysFlow)){
-                        LambdaQueryWrapper<SysFlowExt> flowExtCondition = new LambdaQueryWrapper<>();
-                        flowExtCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
-                        flowExtCondition.eq(SysFlowExt::getHId, sysFlow.getId());
-                        SysFlowExt sysFlowExt = sysFlowExtMapper.selectOne(flowExtCondition);
-                        if(sysFlowExt!=null)
-                            pi.setCurrentAssign(sysFlowExt.getOperation());
-
-                    }
-
-                    instanceDTOS.add(pi);
-                }
-            });*/
-            //FIXME: 我用历史实例去查当前任务 会出错
             List<HistoricProcessInstance> instanceHistoryList = historyService.createHistoricProcessInstanceQuery().list();
             instanceHistoryList.stream().forEach(processInstance -> {
                 ProcessInstanceDTO pi = new ProcessInstanceDTO();

@@ -256,7 +256,8 @@ public class TaskController {
 
                 List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(currentTask.getTaskDefinitionKey())).collect(Collectors.toList());
                 FlowNode currentElement = (FlowNode)currentElements.get(0);
-                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();//FIXME:这里如果是汇聚点的话会造成只能回退到第0个元素来源
+                //FIXME:这里如果是汇聚点的话会造成只能回退到第0个元素来源?
+                FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();
 
                 //删除当前运行任务
                 String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
@@ -419,7 +420,7 @@ public class TaskController {
             if("user".equals(type)){
                 match = taskNode.getOperation().indexOf(param.getUserId())>-1;
             }else if("role".equals(type)){
-                //TODO:包含
+                //TODO:有可能传多user或者多role用逗号分隔, 做包含校验
                 match = Arrays.asList(param.getRole()).contains(taskNode.getOperation());
             }
         }
@@ -440,45 +441,59 @@ public class TaskController {
         try{
             List<TaskTodo> tasks = new ArrayList<>();
 
+            //筛选禁用启用
+            LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
+            c.eq(SysFlow::getSysDisable, 0);
+            List<SysFlow> enabledFlows = sysFlowMapper.selectList(c);
+            List<String> enabledFlowIds = new ArrayList<>();
+            if(Objects.nonNull(enabledFlows)){
+                //enabledFlowIds = enabledFlows.stream().map(SysFlow::getId).collect(Collectors.toList());
+                for(SysFlow enabledFlow : enabledFlows){
+                    enabledFlowIds.add(enabledFlow.getId());
+                }
+            }
+
             LambdaQueryWrapper<SysFlowExt> condition = new LambdaQueryWrapper();
             condition.eq(SysFlowExt::getOperation, user_id);
             List<SysFlowExt> customUserTasks = sysFlowExtMapper.selectList(condition);
             if(Objects.nonNull(customUserTasks) && !customUserTasks.isEmpty()){
                 customUserTasks.stream().forEach(customUserTask -> {
-                    List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).list();
-                    if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
-                        actTasks.stream().forEach(actTask ->{
-                            //.taskId(actTask.getId())
-                            List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                                        .createHistoricVariableInstanceQuery()
-                                        .processInstanceId(actTask.getProcessInstanceId())
-                                        //.taskId(actTask.getId())
-                                        .variableName("userKey")
-                                        .list();
-                            String userKey = "无";
-                            if(Objects.nonNull(varList) && !varList.isEmpty()){
-                                userKey = String.valueOf(varList.get(0).getValue());
-                            }
+                    if(enabledFlowIds.contains(customUserTask.getHId())){
+                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).list();
+                        if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                            actTasks.stream().forEach(actTask ->{
+                                //.taskId(actTask.getId())
+                                List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                                            .createHistoricVariableInstanceQuery()
+                                            .processInstanceId(actTask.getProcessInstanceId())
+                                            //.taskId(actTask.getId())
+                                            .variableName("userKey")
+                                            .list();
+                                String userKey = "无";
+                                if(Objects.nonNull(varList) && !varList.isEmpty()){
+                                    userKey = String.valueOf(varList.get(0).getValue());
+                                }
 
-                            LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
-                            taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
-                            SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+                                LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+                                taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
+                                SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
 
-                            if(Objects.nonNull(actTask)){
-                                TaskTodo tt = new TaskTodo(
-                                    actTask.getId(),
-                                    actTask.getProcessInstanceId(),
-                                    actTask.getName()==null?customUserTask.getNode():actTask.getName(),
-                                    customUserTask.getOperation(),
-                                    userKey,
-                                    actTask.getCreateTime().getTime()+"",
-                                    System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
-                                    sysTask
-                                );
+                                if(Objects.nonNull(actTask)){
+                                    TaskTodo tt = new TaskTodo(
+                                        actTask.getId(),
+                                        actTask.getProcessInstanceId(),
+                                        actTask.getName()==null?customUserTask.getNode():actTask.getName(),
+                                        customUserTask.getOperation(),
+                                        userKey,
+                                        actTask.getCreateTime().getTime()+"",
+                                        System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
+                                        sysTask
+                                    );
 
-                                tasks.add(tt);
-                            }
-                        });
+                                    tasks.add(tt);
+                                }
+                            });
+                        }
                     }
                 });
             }
