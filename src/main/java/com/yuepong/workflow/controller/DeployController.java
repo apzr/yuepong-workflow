@@ -506,7 +506,12 @@ public class DeployController {
     @PostMapping("/apply")
     public ResponseEntity<?> applyModel(@RequestBody SysInfo sysInfo) {
         try {
+
             SysFlow flow = sysInfo.getFlow();
+
+            Model model = repositoryService.createModelQuery().deploymentId(flow.getDeploymentId()).singleResult();
+            flow.setVersion(model.getVersion());
+
             List<SysFlowExt> nodes = sysInfo.getNodes();
 
             if(!"-1".equals(flow.getId())){
@@ -575,6 +580,10 @@ public class DeployController {
     @GetMapping("/enable/{deploymentId_id}")
     public ResponseEntity<?> enableFlow(@PathVariable String deploymentId_id) {
         try{
+            if(!nodesMatch(deploymentId_id)) {
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"节点配置信息缺失，不允许激活", null).response();
+            }
+
             LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
             lambdaQuery.eq(SysFlow::getDeploymentId, deploymentId_id);
             SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
@@ -693,21 +702,11 @@ public class DeployController {
     @GetMapping("/flow/{flow_id}")
     public ResponseEntity<?> flowById(@PathVariable String flow_id) {
         try{
-            LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
-            lambdaQuery.eq(SysFlow::getDeploymentId, flow_id);
-            SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
-            if(Objects.isNull(flow)){
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"未查询到数据", null).response();
-            }
+            Deployment deployment = repositoryService.createDeploymentQuery().deploymentId(flow_id).singleResult();
+            Model model = repositoryService.createModelQuery().modelId(deployment.getKey()).singleResult();
+            SysModel sysModel = getLatestNodes(model.getId());
 
-            //TODO: flow.getId() -> model id -> version -1
-            List<SysFlowExt> nodes = sysFlowExtMapper.findNodesByHID(flow.getId());
-
-            SysModel model = new SysModel();
-            model.setFlow(flow);
-            model.setNodes(nodes);
-
-            return ResponseResult.success("请求成功", model).response();
+            return ResponseResult.success("请求成功", sysModel).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
@@ -831,6 +830,67 @@ public class DeployController {
                 return null;
 
             return list.get(0).getId();
+    }
+
+    /**
+     * getLatestNodes
+     *
+     * @param modelId
+     * @return java.util.List<com.yuepong.workflow.dto.SysFlowExt>
+     * @author apr
+     * @date 2021/11/12 15:36
+     */
+    private SysModel getLatestNodes(String modelId) {
+       LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
+       lambdaQuery.eq(SysFlow::getFlowId, modelId);
+       lambdaQuery.orderByDesc(SysFlow::getVersion);
+       List<SysFlow> flows = sysFlowMapper.selectList(lambdaQuery);
+       if(Objects.nonNull(flows)){
+           for (int i = 0; i < flows.size(); i++) {
+               SysFlow flow = flows.get(i);
+               List<SysFlowExt> nodes = sysFlowExtMapper.findNodesByHID(flow.getId());
+               if(Objects.nonNull(nodes) && !nodes.isEmpty()){
+                    SysModel model = new SysModel();
+                    model.setFlow(flow);
+                    model.setNodes(nodes);
+                    return model;
+               }
+           }
+       }
+
+       return null;
+    }
+
+    /**
+     * 比对节点匹配
+     *
+     * @param instance_id
+     * @return boolean
+     * @author apr
+     * @date 2021/11/12 16:13
+     */
+    private boolean nodesMatch(String instance_id) {
+        LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
+        lambdaQuery.eq(SysFlow::getDeploymentId, instance_id);
+        SysFlow sysFlow = sysFlowMapper.selectOne(lambdaQuery);
+        return Objects.nonNull(sysFlow);
+//        List<SysFlowExt> nodes = sysFlowExtMapper.findNodesByHID(sysFlow.getId());
+//
+//
+//        List<FlowElement> result = new LinkedList();
+//        String processDefinitionId = getProcessDefIdByDeploymentId(instance_id);
+//
+//        if(StringUtils.isNotEmpty(processDefinitionId)){
+//            BpmnModel bpmnModel = repositoryService.getBpmnModel(processDefinitionId);
+//            if(Objects.nonNull(bpmnModel)){
+//                Collection<FlowElement> flowElements = bpmnModel.getMainProcess().getFlowElements();
+//                if(Objects.nonNull(flowElements)){
+//                   result = flowElements.stream()
+//                           .filter(flowElement -> flowElement instanceof Task || flowElement instanceof Gateway)
+//                           .collect(Collectors.toList());
+//                }
+//            }
+//        }
     }
 
 }

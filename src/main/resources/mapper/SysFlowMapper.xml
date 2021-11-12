@@ -7,6 +7,7 @@
         <result column="sys_disable" property="sysDisable" jdbcType="TINYINT"/>
         <result column="flow_id" property="flowId" jdbcType="VARCHAR"/>
         <result column="deployment_id" property="deploymentId" jdbcType="VARCHAR"/>
+        <result column="version" property="version" jdbcType="INTEGER"/>
     </resultMap>
 
     <!-- 通用查询结果列 -->
@@ -15,7 +16,8 @@
         sys_model,
         sys_disable,
         flow_id,
-        deploymentId
+        deploymentId,
+        version
     </sql>
 
 </mapper>

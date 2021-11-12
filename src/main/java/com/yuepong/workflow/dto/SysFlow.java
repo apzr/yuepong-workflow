@@ -39,6 +39,11 @@ public class SysFlow {
      */
     private String deploymentId;
 
+    /*
+     *
+     */
+    private Integer version;
+
     public SysFlow(){
     }
 

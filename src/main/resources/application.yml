@@ -12,9 +12,11 @@ spring:
     check-process-definitions: true # 自动部署验证设置:true-开启（默认）、false-关闭
 
   datasource:
-    url: jdbc:mysql://192.168.0.134:3306/activiti7?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true
+    url: jdbc:mysql://192.168.0.134:3306/activiti7?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true&useSSL=false
+    #url: jdbc:mysql://192.168.0.200:3307/activiti7?useUnicode=true&characterEncoding=utf-8&useSSL=true&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true&useSSL=false
     username: root
     password: toor
+    #password: r00t
     driver-class-name: com.mysql.cj.jdbc.Driver
     type: com.alibaba.druid.pool.DruidDataSource
     initialization-mode: always

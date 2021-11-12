@@ -12,13 +12,11 @@ import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
 import com.yuepong.workflow.utils.Operations;
 import com.yuepong.workflow.utils.ProcessStatus;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiImplicitParam;
-import io.swagger.annotations.ApiImplicitParams;
-import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.*;
 import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
+import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
@@ -200,7 +198,7 @@ public class TaskController {
                 currentNode.setId(startNodeId);
                 currentNode.setHId(lastNode.getHId());
                 currentNode.setNode(lastPoint.getTaskDefinitionKey());
-                currentNode.setUser(Optional.ofNullable(lastPoint.getAssignee()).orElse(""));
+                currentNode.setUser(param.getUserId());
                 currentNode.setRecord(param.getOpinion());
                 currentNode.setOpinion(Operations.APPROVE.getCode());
                 Long now = System.currentTimeMillis();
@@ -258,6 +256,8 @@ public class TaskController {
                 FlowNode currentElement = (FlowNode)currentElements.get(0);
                 //FIXME:这里如果是汇聚点的话会造成只能回退到第0个元素来源?
                 FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();
+                if(prevNode instanceof StartEvent)
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "当前流程节点为首个用户节点, 无法驳回", param.getCommand()).response();
 
                 //删除当前运行任务
                 String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
@@ -269,7 +269,7 @@ public class TaskController {
                 String newNodeId = UUID.randomUUID().toString();
                 newNode.setId(newNodeId);
                 newNode.setHId(currentNode.getHId());
-                newNode.setNode(prevNode.getId());
+                newNode.setNode(currentTask.getTaskDefinitionKey());
                 newNode.setUser(param.getUserId());
                 newNode.setRecord(param.getOpinion());
                 newNode.setOpinion(Operations.RECALL.getCode());
@@ -515,13 +515,6 @@ public class TaskController {
             lambdaQuery2.eq(SysTaskExt::getHId, id);
             lambdaQuery2.orderByDesc(SysTaskExt::getTime);
             List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
-//            tasksList.stream().forEach(sysTaskExt ->{
-//                String act_id = sysTaskExt.getNode();
-//                HistoricActivityInstance activityInstance = historyService.createHistoricActivityInstanceQuery().activityId(act_id).singleResult();
-//                if(Objects.nonNull(activityInstance)){
-//                    sysTaskExt.setNode(activityInstance.getActivityName());
-//                }
-//            });
 
             return ResponseResult.success("请求成功", tasksList).response();
 		} catch (BizException be) {
@@ -559,6 +552,7 @@ public class TaskController {
     @PostMapping("/task/sys_task/search")
     public ResponseEntity<?> getSysTask(@RequestBody SysTaskQueryParam sysTask) {
         try{
+            List<SysTask> result = new ArrayList<>();
 
             LambdaQueryWrapper<SysTask> lambdaQuery2 = new QueryWrapper<SysTask>().lambda();
             if(Objects.nonNull(sysTask.getId()))
@@ -571,13 +565,37 @@ public class TaskController {
                  lambdaQuery2.eq(SysTask::getRoute, sysTask.getRoute());
             if(Objects.nonNull(sysTask.getTaskId()))
                  lambdaQuery2.eq(SysTask::getTaskId, sysTask.getTaskId());
+            if(Objects.nonNull(sysTask.getStatus()))
+                 lambdaQuery2.in(SysTask::getStatus, sysTask.getStatus());
 
             List<SysTask> taskHeads = sysTaskMapper.selectList(lambdaQuery2);
-
             if(Objects.isNull(taskHeads) || taskHeads.isEmpty())
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"未获取到数据", sysTask).response();
 
-            return ResponseResult.success("请求成功", taskHeads).response();
+            //返回最新的一条
+            List<SysTask> running = taskHeads.stream().filter(head ->  Arrays.asList("1", "2").contains(head.getStatus())).collect(Collectors.toList());
+            result = running;
+            //返回历史最新
+            if(Objects.isNull(result) || result.isEmpty()){
+                HistoricProcessInstance newer = null;
+                for(SysTask task : taskHeads){
+                    HistoricProcessInstance current = historyService.createHistoricProcessInstanceQuery().processInstanceId(task.getTaskId()).singleResult();
+                    if(Objects.nonNull(current)){
+                         if(Objects.isNull(newer) || current.getEndTime().after( newer.getEndTime() )){
+                            newer = current;
+                        }
+                    }
+                }
+                if(Objects.nonNull(newer)){
+                    for(SysTask task : taskHeads){
+                         if(task.getTaskId().equals(newer.getId())){
+                            result.add(task);
+                        }
+                    }
+                }
+            }
+
+            return ResponseResult.success("请求成功", result).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), sysTask).response();
 		} catch (Exception ex) {

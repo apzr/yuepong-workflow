@@ -2,6 +2,8 @@ package com.yuepong.workflow.dto;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class SysTaskQueryParam {
 
@@ -10,5 +12,6 @@ public class SysTaskQueryParam {
     public String sId;
     public String taskId;
     public String route;
+    public List<String> status;
 
 }
