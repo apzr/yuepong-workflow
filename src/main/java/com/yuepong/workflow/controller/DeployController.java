@@ -21,6 +21,7 @@ import org.activiti.bpmn.model.Process;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
+import org.activiti.engine.history.HistoricProcessInstanceQuery;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.repository.Deployment;
 import org.activiti.engine.repository.Model;
@@ -285,6 +286,52 @@ public class DeployController {
             result.setXml(bpmnText);
             result.setNode(currentNodeKey);
 
+			return ResponseResult.success("请求成功", result).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @ApiOperation(
+            value = "查询流程图各个节点信息",
+            notes = "据模型ID查询act_re_model表, 根据EDITOR_SOURCE_VALEU_ID_查询act_ge_bytearray表, 取BYTES_处理成String"
+    )
+    @PostMapping("/nodes/search")
+    public ResponseEntity<?> getModelUsers(@RequestBody ModelQueryParam modelQueryParam) {
+        try {
+            List<SysFlowExt> result = new ArrayList<>();
+            if(Objects.nonNull(modelQueryParam.getId())){//task_id
+                LambdaQueryWrapper<SysFlow> flowQuery = new QueryWrapper<SysFlow>().lambda();
+                flowQuery.eq(SysFlow::getFlowId, modelQueryParam.getId());
+                List<SysFlow> flows = sysFlowMapper.selectList(flowQuery);
+
+                if(Objects.nonNull(flows) && !flows.isEmpty()) {
+                    SysFlow flow = flows.get(0);
+                    if(Objects.nonNull(flow)){
+                        result = sysFlowExtMapper.findNodesByHID(flow.getId());
+                    }
+                }
+            }else if(Objects.nonNull(modelQueryParam.getInstanceId())){//instance_id
+                ProcessInstance instance = runtimeService.createProcessInstanceQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
+                String deploymentId = "";
+                if (Objects.nonNull(instance)) {
+                    deploymentId = instance.getDeploymentId();
+                }else{
+                    HistoricProcessInstance instanceHistory = historyService.createHistoricProcessInstanceQuery().processInstanceId(modelQueryParam.getInstanceId()).singleResult();
+                    if (Objects.nonNull(instanceHistory)) {
+                        deploymentId = instanceHistory.getDeploymentId();
+                    }
+                }
+                LambdaQueryWrapper<SysFlow> flowQuery = new QueryWrapper<SysFlow>().lambda();
+                flowQuery.eq(SysFlow::getDeploymentId, deploymentId);
+                SysFlow flow = sysFlowMapper.selectOne(flowQuery);
+
+                if(Objects.nonNull(flow)){
+                    result = sysFlowExtMapper.findNodesByHID(flow.getId());
+                }
+            }
 			return ResponseResult.success("请求成功", result).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
@@ -738,16 +785,32 @@ public class DeployController {
 
     @ApiOperation(value = "查询当前所有正在的流程", notes = "查询当前所有正在进行的流程")
     @GetMapping("/process/instanceList")
-    public ResponseEntity<?> getInstanceList() {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    public ResponseEntity<?> getInstanceList(@RequestParam @Nullable String billNo, @RequestParam @Nullable String instId,
+                                             @RequestParam @Nullable String category,@RequestParam @Nullable Integer pageIndex,
+                                             @RequestParam @Nullable Integer pageSize) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        int first = 0;
+        int max = 99999;
+        if(Objects.nonNull(pageIndex) && pageIndex>0){
+            first = (pageIndex-1)*pageSize;
+            max = pageSize;
+        }
         try{
             List<ProcessInstanceDTO> instanceDTOS = new ArrayList<>();
-            List<HistoricProcessInstance> instanceHistoryList = historyService.createHistoricProcessInstanceQuery().list();
+            HistoricProcessInstanceQuery instanceHistoryListQuery = historyService.createHistoricProcessInstanceQuery();
+            if(Objects.nonNull(instId))
+                instanceHistoryListQuery.processInstanceId(instId);
+            if(Objects.nonNull(category))
+                instanceHistoryListQuery.processInstanceBusinessKey(category);
+            if(Objects.nonNull(billNo))
+                instanceHistoryListQuery.processInstanceName(billNo);
+
+            List<HistoricProcessInstance> instanceHistoryList = instanceHistoryListQuery.listPage(first, max);
             instanceHistoryList.stream().forEach(processInstance -> {
                 ProcessInstanceDTO pi = new ProcessInstanceDTO();
                 pi.setInstanceId(processInstance.getId());
                 pi.setCreateTime(processInstance.getStartTime().getTime()+"");
                 pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
-                pi.setStatus("完成");
+                pi.setStatus("结束");
 
                 List<HistoricVariableInstance> varList = processEngine.getHistoryService()
                             .createHistoricVariableInstanceQuery()

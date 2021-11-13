@@ -100,8 +100,9 @@ public class TaskController {
 
 
             Map<String, Object> variables = Optional.ofNullable(tp.getConditions()).orElse(new HashMap<>());
-            variables.put("creator", tp.getUserId());//发起人
+            variables.put("creator", tp.getUserId());
             ProcessInstance processInstance = runtimeService.startProcessInstanceById(def_id, tp.getType(), variables);//对某一个流程启用一个流程实例
+            runtimeService.setProcessInstanceName(processInstance.getId(), tp.getDataId());
 
             LambdaQueryWrapper<SysFlowExt> lambdaQueryFlowExt = new QueryWrapper<SysFlowExt>().lambda();
             lambdaQueryFlowExt.eq(SysFlowExt::getHId, flow.getId());
@@ -232,9 +233,9 @@ public class TaskController {
                         endNode.setNode("end");
                     }
 
-                    endNode.setUser("system");
-                    endNode.setRecord(param.getOpinion());
-                    endNode.setOpinion(Operations.APPROVE.getCode());
+                    endNode.setUser("");//system
+                    endNode.setRecord("");//param.getOpinion()
+                    endNode.setOpinion("");//Operations.APPROVE.getCode()
                     endNode.setTime(System.currentTimeMillis()+"");
                     endNode.setOperTime("0");
 
@@ -417,14 +418,16 @@ public class TaskController {
         if(Objects.nonNull(taskNodes) && !taskNodes.isEmpty()) {
             SysFlowExt taskNode = taskNodes.get(0);
             String type = taskNode.getUserType();
-            if("user".equals(type)){
-                match = taskNode.getOperation().indexOf(param.getUserId())>-1;
-            }else if("role".equals(type)){
-                //TODO:有可能传多user或者多role用逗号分隔, 做包含校验
-                match = Arrays.asList(param.getRole()).contains(taskNode.getOperation());
+            String values = taskNode.getOperation();
+            if(Objects.nonNull(values)){
+                List<String> passCode = Arrays.asList(values.split(","));
+                if("user".equals(type) ){
+                    match = passCode.contains(param.getUserId());
+                }else if("role".equals(type)){
+                    match = Collections.disjoint(Arrays.asList(param.getRole()), passCode);
+                }
             }
         }
-
         return match;
     }
 
