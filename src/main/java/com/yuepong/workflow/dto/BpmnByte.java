@@ -13,7 +13,7 @@ import lombok.Data;
  * @date 2021/10/26 16:10
  */
 @Data
-@TableName("act_ge_bytearray")
+@TableName("ACT_GE_BYTEARRAY")
 public class BpmnByte {
 
     @TableId(type = IdType.INPUT,value = "ID_")
