@@ -638,7 +638,7 @@ public class DeployController {
             if(Objects.nonNull(flow)){
                 //执行激活前置条件判断
                 LambdaQueryWrapper<SysFlow> lambdaQuery1 = new QueryWrapper<SysFlow>().lambda();
-                lambdaQuery.eq(SysFlow::getSysModel, flow.getSysModel());
+                lambdaQuery1.eq(SysFlow::getSysModel, flow.getSysModel());
                 List<SysFlow> flowListSameType = sysFlowMapper.selectList(lambdaQuery1);
                 Optional.ofNullable(flowListSameType).orElse(new ArrayList<>()).forEach(sameTypeFlow -> {
                     Boolean disable = !sameTypeFlow.getId().equals(flow.getId());
