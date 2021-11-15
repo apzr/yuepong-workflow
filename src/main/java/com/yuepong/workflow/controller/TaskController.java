@@ -26,7 +26,6 @@ import org.activiti.engine.impl.persistence.entity.TaskEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
-import org.activiti.engine.runtime.ProcessInstanceQuery;
 import org.activiti.engine.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -409,22 +408,29 @@ public class TaskController {
      * @date 2021/11/9 9:16
      */
     private boolean permissionCheck(TaskCompleteParam param, Task currentTask) {
-        boolean match = false;
+        boolean match =false;
 
         LambdaQueryWrapper<SysFlowExt> condition = new QueryWrapper<SysFlowExt>().lambda();
         condition.eq(SysFlowExt::getNode, currentTask.getTaskDefinitionKey());
         List<SysFlowExt> taskNodes = sysFlowExtMapper.selectList(condition);
 
         if(Objects.nonNull(taskNodes) && !taskNodes.isEmpty()) {
-            SysFlowExt taskNode = taskNodes.get(0);
-            String type = taskNode.getUserType();
-            String values = taskNode.getOperation();
-            if(Objects.nonNull(values)){
-                List<String> passCode = Arrays.asList(values.split(","));
-                if("user".equals(type) ){
-                    match = passCode.contains(param.getUserId());
-                }else if("role".equals(type)){
-                    match = Collections.disjoint(Arrays.asList(param.getRole()), passCode);
+            for(SysFlowExt node : taskNodes) {
+                LambdaQueryWrapper<SysFlow> flowQuery = new QueryWrapper<SysFlow>().lambda();
+                flowQuery.eq(SysFlow::getId, node.getHId());
+                flowQuery.eq(SysFlow::getSysDisable, false);
+                SysFlow flow = sysFlowMapper.selectOne(flowQuery);
+                if(Objects.nonNull(flow)){
+                    String type = node.getUserType();
+                    String values = node.getOperation();
+                    if(Objects.nonNull(values)){
+                        List<String> passCode = Arrays.asList(values.split(","));
+                        if("user".equals(type) ){
+                            match = (passCode.contains(param.getUserId()));
+                        }else if("role".equals(type)){
+                            match = (Collections.disjoint(Arrays.asList(param.getRole()), passCode));
+                        }
+                    }
                 }
             }
         }
@@ -446,7 +452,7 @@ public class TaskController {
 
             //筛选禁用启用
             LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
-            c.eq(SysFlow::getSysDisable, 0);
+            //c.eq(SysFlow::getSysDisable, 0);
             List<SysFlow> enabledFlows = sysFlowMapper.selectList(c);
             List<String> enabledFlowIds = new ArrayList<>();
             if(Objects.nonNull(enabledFlows)){
