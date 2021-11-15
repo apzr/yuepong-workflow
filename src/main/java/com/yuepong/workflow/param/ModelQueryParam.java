@@ -1,4 +1,4 @@
-package com.yuepong.workflow.dto;
+package com.yuepong.workflow.param;
 
 import lombok.Data;
 
@@ -11,9 +11,9 @@ import lombok.Data;
  * @date 2021/10/25 16:38:27
  **/
 @Data
-public class ModelQueryResult {
+public class ModelQueryParam {
 
-    private String xml;
-    private String node;
+    private String id;
+    private String instanceId;
 
 }

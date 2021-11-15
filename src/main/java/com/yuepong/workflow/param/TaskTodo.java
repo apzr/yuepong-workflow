@@ -1,5 +1,6 @@
-package com.yuepong.workflow.dto;
+package com.yuepong.workflow.param;
 
+import com.yuepong.workflow.dto.SysTask;
 import lombok.Data;
 
 /**

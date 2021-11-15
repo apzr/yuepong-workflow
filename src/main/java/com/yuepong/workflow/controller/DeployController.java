@@ -11,6 +11,9 @@ import com.yuepong.jdev.code.CodeMsgs;
 import com.yuepong.jdev.exception.BizException;
 import com.yuepong.workflow.dto.*;
 import com.yuepong.workflow.mapper.*;
+import com.yuepong.workflow.page.pager.ModelPager;
+import com.yuepong.workflow.page.pager.ProcessInstancePager;
+import com.yuepong.workflow.param.*;
 import com.yuepong.workflow.utils.BpmnConverterUtil;
 import com.yuepong.workflow.utils.ProcessStatus;
 import com.yuepong.workflow.utils.Utils;
@@ -25,6 +28,7 @@ import org.activiti.engine.history.HistoricProcessInstanceQuery;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.repository.Deployment;
 import org.activiti.engine.repository.Model;
+import org.activiti.engine.repository.ModelQuery;
 import org.activiti.engine.repository.ProcessDefinition;
 import org.activiti.engine.runtime.ProcessInstance;
 import org.apache.commons.lang3.StringUtils;
@@ -405,12 +409,25 @@ public class DeployController {
                     required = true
             )
     })
-    @GetMapping("/list/category/{category}/{firstResult}/{maxResults}")
-	public ResponseEntity<?> listModel(@PathVariable String category, @PathVariable int firstResult, @PathVariable int maxResults) {
+    @GetMapping("/list")
+	public ResponseEntity<?> listModel(@RequestParam @Nullable String category, @RequestParam @Nullable String name,
+                                       @RequestParam @Nullable Long pageIndex, @RequestParam @Nullable Long pageSize) {
 		try {
 		    //model的id等于我们SysFlow的flow_id
-            List<Model> models = repositoryService.createModelQuery().modelCategory(category).listPage(firstResult, maxResults);
-			return ResponseResult.success("请求成功", models).response();
+            List<ProcessInstanceDTO> instanceDTOS = new ArrayList<>();
+            ModelQuery modelQuery = repositoryService.createModelQuery();
+            modelQuery.orderByCreateTime().desc();
+            if(Objects.nonNull(category))
+                modelQuery.modelCategory(category);
+            if(Objects.nonNull(name))
+                modelQuery.modelNameLike("%"+name+"%");
+
+            long count = modelQuery.count();
+            ModelPager page = new ModelPager(null, pageIndex, pageSize, count);
+            List<Model> models = modelQuery.listPage(page.getFirst().intValue(), page.getPageSize().intValue());
+            page.setData(models);
+
+			return ResponseResult.success("请求成功", page).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
@@ -786,17 +803,13 @@ public class DeployController {
     @ApiOperation(value = "查询当前所有正在的流程", notes = "查询当前所有正在进行的流程")
     @GetMapping("/process/instanceList")
     public ResponseEntity<?> getInstanceList(@RequestParam @Nullable String billNo, @RequestParam @Nullable String instId,
-                                             @RequestParam @Nullable String category,@RequestParam @Nullable Integer pageIndex,
-                                             @RequestParam @Nullable Integer pageSize) {//"032bf875-99b0-4c85-91c0-e128fc759565"
-        int first = 0;
-        int max = 99999;
-        if(Objects.nonNull(pageIndex) && pageIndex>0){
-            first = (pageIndex-1)*pageSize;
-            max = pageSize;
-        }
+                                             @RequestParam @Nullable String category,@RequestParam @Nullable Long pageIndex,
+                                             @RequestParam @Nullable Long pageSize) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        ProcessInstancePager<ProcessInstanceDTO> p;
         try{
             List<ProcessInstanceDTO> instanceDTOS = new ArrayList<>();
             HistoricProcessInstanceQuery instanceHistoryListQuery = historyService.createHistoricProcessInstanceQuery();
+            instanceHistoryListQuery.orderByProcessInstanceStartTime().desc();
             if(Objects.nonNull(instId))
                 instanceHistoryListQuery.processInstanceId(instId);
             if(Objects.nonNull(category))
@@ -804,7 +817,8 @@ public class DeployController {
             if(Objects.nonNull(billNo))
                 instanceHistoryListQuery.processInstanceName(billNo);
 
-            List<HistoricProcessInstance> instanceHistoryList = instanceHistoryListQuery.listPage(first, max);
+            p = new ProcessInstancePager(null, pageIndex, pageSize, instanceHistoryListQuery.count());
+            List<HistoricProcessInstance> instanceHistoryList = instanceHistoryListQuery.listPage(p.getFirst().intValue(), p.getPageSize().intValue());
             instanceHistoryList.stream().forEach(processInstance -> {
                 ProcessInstanceDTO pi = new ProcessInstanceDTO();
                 pi.setInstanceId(processInstance.getId());
@@ -853,7 +867,8 @@ public class DeployController {
                 instanceDTOS.add(pi);
             });
 
-            return ResponseResult.success("请求成功", instanceDTOS).response();
+            p.setData(instanceDTOS);
+            return ResponseResult.success("请求成功", p).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {

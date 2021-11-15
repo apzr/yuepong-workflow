@@ -1,4 +1,4 @@
-package com.yuepong.workflow.dto;
+package com.yuepong.workflow.param;
 
 import lombok.Data;
 

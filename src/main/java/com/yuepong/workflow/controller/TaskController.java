@@ -10,6 +10,11 @@ import com.yuepong.workflow.mapper.SysFlowExtMapper;
 import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
+import com.yuepong.workflow.page.pager.TaskTodoPager;
+import com.yuepong.workflow.param.SysTaskQueryParam;
+import com.yuepong.workflow.param.TaskCompleteParam;
+import com.yuepong.workflow.param.TaskParam;
+import com.yuepong.workflow.param.TaskTodo;
 import com.yuepong.workflow.utils.Operations;
 import com.yuepong.workflow.utils.ProcessStatus;
 import io.swagger.annotations.*;
@@ -29,6 +34,7 @@ import org.activiti.engine.runtime.ProcessInstance;
 import org.activiti.engine.task.Task;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -445,9 +451,11 @@ public class TaskController {
             paramType = "query",
             example = ""
     ) })
-    @GetMapping("/task/user/{user_id}")
-    public ResponseEntity<?> getTaskByUser(@PathVariable String user_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    @GetMapping("/task/user")
+    public ResponseEntity<?> getTaskByUser(@RequestParam String userId, @RequestParam @Nullable Long pageIndex,
+                                           @RequestParam @Nullable Long pageSize) {//"032bf875-99b0-4c85-91c0-e128fc759565"
         try{
+            TaskTodoPager<TaskTodo> p;
             List<TaskTodo> tasks = new ArrayList<>();
 
             //筛选禁用启用
@@ -463,12 +471,14 @@ public class TaskController {
             }
 
             LambdaQueryWrapper<SysFlowExt> condition = new LambdaQueryWrapper();
-            condition.eq(SysFlowExt::getOperation, user_id);
+            condition.eq(SysFlowExt::getOperation, userId);
+            //condition.orderByDesc(SysFlowExt::getId).last("LIMIT "+ p.getFirst() + ", " + p.getPageSize());
             List<SysFlowExt> customUserTasks = sysFlowExtMapper.selectList(condition);
+
             if(Objects.nonNull(customUserTasks) && !customUserTasks.isEmpty()){
                 customUserTasks.stream().forEach(customUserTask -> {
                     if(enabledFlowIds.contains(customUserTask.getHId())){
-                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).list();
+                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).orderByTaskCreateTime().desc().list();
                         if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
                             actTasks.stream().forEach(actTask ->{
                                 //.taskId(actTask.getId())
@@ -477,6 +487,7 @@ public class TaskController {
                                             .processInstanceId(actTask.getProcessInstanceId())
                                             //.taskId(actTask.getId())
                                             .variableName("userKey")
+                                            .orderByProcessInstanceId().desc()
                                             .list();
                                 String userKey = "无";
                                 if(Objects.nonNull(varList) && !varList.isEmpty()){
@@ -507,7 +518,16 @@ public class TaskController {
                 });
             }
 
-            return ResponseResult.success("请求成功", tasks).response();
+            p = new TaskTodoPager(null, pageIndex, pageSize, new Long(tasks.size()));
+            int startIndex = p.getFirst().intValue();
+            int endIndex = p.getFirst().intValue() + p.getPageSize().intValue();
+            List<TaskTodo> taskPage = tasks.subList(
+                    startIndex>tasks.size()?tasks.size():startIndex,
+                    endIndex>tasks.size()?tasks.size():endIndex
+            );
+            p.setData(taskPage);
+
+            return ResponseResult.success("请求成功", p).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
