@@ -11,6 +11,7 @@
         <id column="conditions" property="conditions" jdbcType="VARCHAR"/>
         <id column="value" property="value" jdbcType="VARCHAR"/>
         <id column="operation" property="operation" jdbcType="VARCHAR"/>
+        <id column="oper_name" property="operName" jdbcType="VARCHAR"/>
         <id column="user_type" property="userType" jdbcType="VARCHAR"/>
         <id column="next_node" property="nextNode" jdbcType="VARCHAR"/>
     </resultMap>

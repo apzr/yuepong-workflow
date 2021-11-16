@@ -6,6 +6,7 @@
         <result column="h_id" property="hId" jdbcType="VARCHAR"/>
         <result column="node" property="node" jdbcType="VARCHAR"/>
         <result column="user" property="user" jdbcType="VARCHAR"/>
+        <result column="user_name" property="userName" jdbcType="VARCHAR"/>
         <result column="user_type" property="userType" jdbcType="VARCHAR"/>
         <result column="record" property="record" jdbcType="VARCHAR"/>
         <result column="opinion" property="opinion" jdbcType="VARCHAR"/>

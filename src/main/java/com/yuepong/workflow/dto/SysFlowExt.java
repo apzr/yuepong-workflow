@@ -48,11 +48,15 @@ public class SysFlowExt {
      */
     private String value;
     /*
-     * 值
+     * 用户id
      */
     private String operation;
     /*
-     * 值
+     * 用户名
+     */
+    private String operName;
+    /*
+     * 用户类型
      */
     private String userType;
     /*
@@ -60,17 +64,4 @@ public class SysFlowExt {
      */
     private String nextNode;
 
-    public SysFlowExt(){
-
-    }
-
-    public SysFlowExt(String hId, String node, String type,String field, String conditions, String value, String nextNode){
-        this.hId = hId;
-        this.node = node;
-        this.nodeType = type;
-        this.field = field;
-        this.conditions = conditions;
-        this.value = value;
-        this.nextNode = nextNode;
-    }
 }

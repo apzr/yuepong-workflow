@@ -11,10 +11,7 @@ import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.mapper.SysTaskExtMapper;
 import com.yuepong.workflow.mapper.SysTaskMapper;
 import com.yuepong.workflow.page.pager.TaskTodoPager;
-import com.yuepong.workflow.param.SysTaskQueryParam;
-import com.yuepong.workflow.param.TaskCompleteParam;
-import com.yuepong.workflow.param.TaskParam;
-import com.yuepong.workflow.param.TaskTodo;
+import com.yuepong.workflow.param.*;
 import com.yuepong.workflow.utils.Operations;
 import com.yuepong.workflow.utils.ProcessStatus;
 import io.swagger.annotations.*;
@@ -22,6 +19,8 @@ import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
+import org.activiti.engine.history.HistoricProcessInstanceQuery;
+import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
@@ -75,6 +74,38 @@ public class TaskController {
 
     @Autowired
     HistoryService historyService;
+
+    @ApiOperation(value = "查询用户的审批与撤回权限", notes = "根据单号与用户, 或者根据单号与角色判断其是否有权限进行审批")
+    @PostMapping("/user/permission")
+    public ResponseEntity<?> getUserPermission(@RequestBody TaskCompleteParam tc) {
+        try{
+            boolean approve = false, back = false;
+            //1 根据单号查询1,2
+            List<SysTask> sysTasks = sysTaskMapper.selectBySId(tc.getDataId());
+            List<SysTask> activeTasks = sysTasks.stream()
+                    .filter(head -> Arrays.asList("1", "2").contains(head.getStatus()))
+                    .collect(Collectors.toList());
+            //2. 如果有1,2 找到instance, 进行审批和撤回判断
+            if(Objects.nonNull(activeTasks) && !activeTasks.isEmpty()){
+                SysTask st = activeTasks.get(0);
+                String processInstanceId = st.getTaskId();
+                Task current = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+
+                tc.setCommand("1");
+                approve = permissionCheck(tc, current);
+                tc.setCommand("5");
+                back = permissionCheck(tc, current);
+            }
+
+            return ResponseResult.success("请求成功", PermissionResult.newInstance(approve, back)).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+
+    }
 
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
     @ApiImplicitParams({
@@ -324,7 +355,7 @@ public class TaskController {
                 sysTaskExtMapper.insert(newNode);
 
                 task.setStatus(ProcessStatus.ACTIVE.getCode());
-            } else if(Operations.CANCEL.getCode().equals(param.getCommand())){//3.4 终点
+            } else if(Operations.CANCEL1.getCode().equals(param.getCommand())){//3.4 终点
                 //获取当前最新节点ID
                 LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
                 lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
@@ -352,7 +383,7 @@ public class TaskController {
                 newNode.setNode(endTaskNode.getId());
                 newNode.setUser(param.getUserId());
                 newNode.setRecord(param.getOpinion());
-                newNode.setOpinion(Operations.CANCEL.getCode());
+                newNode.setOpinion(Operations.CANCEL1.getCode());
                 Long now = System.currentTimeMillis();
                 Long timeBetween = now - Long.parseLong(currentNode.getTime());
                 newNode.setTime(now.toString());
@@ -360,7 +391,43 @@ public class TaskController {
                 sysTaskExtMapper.insert(newNode);
 
                 task.setStatus(ProcessStatus.SHUTDOWN.getCode());
-            }  else {
+            } else if(Operations.CANCEL2.getCode().equals(param.getCommand())){//3.4 终点
+                //获取当前最新节点ID
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, task.getId());
+                lambdaQuery2.orderByDesc(SysTaskExt::getTime).last("limit 1");
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+                SysTaskExt currentNode = tasksList.get(0);//倒数第一个节点
+                String currentTaskDefKey = currentNode.getNode();
+                Task currentTask = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+
+                Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
+
+                List<FlowElement> startElement = allNodes.stream().filter(node -> node instanceof EndEvent).collect(Collectors.toList());
+                FlowElement endTaskNode = startElement.get(0);
+
+                //删除当前运行任务
+                String executionEntityId =processEngine.getManagementService().executeCommand(new DeleteTaskCommand(currentTask.getId()));
+                //流程执行到来源节点
+                processEngine.getManagementService().executeCommand(new JumpCommand((FlowNode)endTaskNode, executionEntityId));
+
+                //自定义表Task记录表表插入一条新的记录
+                SysTaskExt newNode = new SysTaskExt();
+                String newNodeId = UUID.randomUUID().toString();
+                newNode.setId(newNodeId);
+                newNode.setHId(currentNode.getHId());
+                newNode.setNode(endTaskNode.getId());
+                newNode.setUser(param.getUserId());
+                newNode.setRecord(param.getOpinion());
+                newNode.setOpinion(Operations.CANCEL2.getCode());
+                Long now = System.currentTimeMillis();
+                Long timeBetween = now - Long.parseLong(currentNode.getTime());
+                newNode.setTime(now.toString());
+                newNode.setOperTime(timeBetween.toString());
+                sysTaskExtMapper.insert(newNode);
+
+                task.setStatus(ProcessStatus.SHUTDOWN.getCode());
+            } else {
                 return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "非法操作命令代码", param.getCommand()).response();
             }
 
@@ -440,17 +507,30 @@ public class TaskController {
                 }
             }
         }
+
+        //撤回判断创建人
+        if(!match && Operations.CANCEL2.getCode().equals(param.getCommand())){
+            Collection<FlowElement> allNodes = getNodes(currentTask.getProcessDefinitionId());
+            List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(currentTask.getTaskDefinitionKey())).collect(Collectors.toList());
+            FlowNode currentElement = (FlowNode)currentElements.get(0);
+            FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();
+            if(prevNode!=null && prevNode instanceof StartEvent){
+                //获取创建人
+                ProcessInstance processInstance = runtimeService.createProcessInstanceQuery().processInstanceId(currentTask.getProcessInstanceId()).singleResult();
+                Object creator = runtimeService.getVariable(processInstance.getId(), "creator");
+                match = param.getUserId().equals(creator.toString());
+            }
+        }
+
         return match;
     }
 
     @ApiOperation(value = "查询当前用户的任务", notes = "查询当前用户的任务")
-    @ApiImplicitParams({ @ApiImplicitParam(
-            name = "user_id",
-            value = "用户id",
-            dataType = "String",
-            paramType = "query",
-            example = ""
-    ) })
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "userId", value = "用户id", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageIndex", value = "页码", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
+    })
     @GetMapping("/task/user")
     public ResponseEntity<?> getTaskByUser(@RequestParam String userId, @RequestParam @Nullable Long pageIndex,
                                            @RequestParam @Nullable Long pageSize) {//"032bf875-99b0-4c85-91c0-e128fc759565"
@@ -536,9 +616,43 @@ public class TaskController {
 		}
     }
 
+    @ApiOperation(value = "查询当前用户已完成的任务", notes = "查询当前用户已完成的任务")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "userId", value = "用户id", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageIndex", value = "页码", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
+    })
+    @GetMapping("/task/finished/user")
+    public ResponseEntity<?> getTaskFinishedByUser(@RequestParam String userId) {
+        try{
+            List<HistoricProcessInstance> instances = new ArrayList<>();
+
+            LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
+            condition.groupBy(SysTaskExt::getHId).select(SysTaskExt::getHId);
+            condition.eq(SysTaskExt::getUser, userId);
+            List<SysTaskExt> finishedTasks = sysTaskExtMapper.selectList(condition);
+
+            if(Objects.nonNull(finishedTasks) && !finishedTasks.isEmpty()){
+                List<String> hIds = finishedTasks.stream().map(SysTaskExt::getHId).collect(Collectors.toList());
+                LambdaQueryWrapper<SysTask> lambdaQuery2 = new QueryWrapper<SysTask>().lambda();
+                lambdaQuery2.in(SysTask::getId, hIds);
+                List<SysTask> tasksHeadList = sysTaskMapper.selectList(lambdaQuery2);
+                Set<String> instanceIds = tasksHeadList.stream().map(SysTask::getTaskId).collect(Collectors.toSet());
+                instances = historyService.createHistoricProcessInstanceQuery().processInstanceIds(instanceIds).orderByProcessInstanceStartTime().desc().listPage(0,300);
+            }
+
+            return ResponseResult.success("请求成功", instances).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
     @ApiOperation(value = "根据主表id查询任务(节点)列表")
     @GetMapping("/task/sysTaskList/{id}")
-    public ResponseEntity<?> getTaskByHeaderId(@PathVariable String id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    public ResponseEntity<?> getTaskByHeaderId(@PathVariable String id) {
         try{
             LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
             lambdaQuery2.eq(SysTaskExt::getHId, id);
@@ -551,6 +665,54 @@ public class TaskController {
 		} catch (Exception ex) {
             ex.printStackTrace();
             return ResponseResult.obtain(CodeMsgs.SYSTEM_BASE_ERROR,ex.getMessage(), id).response();
+		}
+    }
+
+    @ApiOperation(value = "根据主表id查询任务(节点)列表")
+    @GetMapping("/task/sysTaskList/{head_id}/showHistory")
+    public ResponseEntity<?> getTaskWithByHeaderId(@PathVariable String head_id) {
+        try{
+            LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
+            lambdaQuery.eq(SysTask::getId, head_id);
+            SysTask taskHeader = sysTaskMapper.selectOne(lambdaQuery);
+            String dataId = taskHeader.getSId();
+
+            LambdaQueryWrapper<SysTask> lambdaQuery1 = new QueryWrapper<SysTask>().lambda();
+            lambdaQuery1.eq(SysTask::getSId, dataId);
+            List<SysTask> taskHeaders = sysTaskMapper.selectList(lambdaQuery1);
+
+            Map<String, List<SysTaskExt>> m = new HashMap<String, List<SysTaskExt>>();
+            taskHeaders.stream().forEach(header -> {
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, header.getId());
+                lambdaQuery2.orderByDesc(SysTaskExt::getTime);
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+
+                m.put(header.getTaskId(), tasksList);
+            });
+
+            List<SysTaskExtResult> result = new ArrayList();
+            m.forEach((k,v) -> {
+                v.stream().forEach(taskExt -> {
+                    if(taskExt.getNode().startsWith("startNode")){
+                        result.add(SysTaskExtResult.newInstance(taskExt, "开始"));
+                    }else if(taskExt.getNode().startsWith("Event_")){
+                        result.add(SysTaskExtResult.newInstance(taskExt, "结束"));
+                    }else{
+                        HistoricTaskInstance nodeInfo = historyService.createHistoricTaskInstanceQuery().processInstanceId(k).taskDefinitionKey(taskExt.getNode()).singleResult();
+                        if(Objects.nonNull(nodeInfo))
+                            result.add(SysTaskExtResult.newInstance(taskExt, nodeInfo.getName()));
+                    }
+                });
+            });
+
+            Collections.sort(result);
+            return ResponseResult.success("请求成功",result).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), head_id).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+            return ResponseResult.obtain(CodeMsgs.SYSTEM_BASE_ERROR,ex.getMessage(), head_id).response();
 		}
     }
 

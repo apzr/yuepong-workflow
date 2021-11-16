@@ -20,7 +20,7 @@ public enum Operations{
     },
     RECALL{//prev: 上一个节点
         public String getMsg(){
-            return "撤回";
+            return "重审";
         }
         public String getCode(){
             return "2";
@@ -28,18 +28,26 @@ public enum Operations{
     },
     REJECT{//start: 第一个节点
         public String getMsg(){
-            return "驳回";
+            return "重启";
         }
         public String getCode(){
             return "3";
         }
     },
-    CANCEL{//end:  最后一个节点
+    CANCEL1{//end:  最后一个节点
         public String getMsg(){
-            return "作废";
+            return "驳回";
         }
         public String getCode(){
             return "4";
+        }
+    },
+    CANCEL2{//end:  最后一个节点
+        public String getMsg(){
+            return "撤回";
+        }
+        public String getCode(){
+            return "5";
         }
     };
 

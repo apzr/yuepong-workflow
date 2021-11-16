@@ -32,6 +32,10 @@ public class SysTaskExt {
      */
     private String user;
     /*
+     * 操作人名
+     */
+    private String userName;
+    /*
      * 操作人类型
      */
     private String userType;
