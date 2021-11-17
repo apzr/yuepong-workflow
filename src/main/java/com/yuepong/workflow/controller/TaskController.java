@@ -19,7 +19,6 @@ import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
-import org.activiti.engine.history.HistoricProcessInstanceQuery;
 import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
@@ -39,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -107,6 +107,66 @@ public class TaskController {
 
     }
 
+    @ApiOperation(value = "查询用户待办已办和创建", notes = "根据用户ID查询用户待办已办和创建")
+    @GetMapping("/user/monitor/{user_id}")
+    public ResponseEntity<?> getUserMonitor(@PathVariable String user_id) {
+        try{
+            int done, create;
+            AtomicInteger todo= new AtomicInteger(0);
+
+            //done
+            LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
+            condition.eq(SysTaskExt::getUser, user_id);
+            condition.like(SysTaskExt::getNode, "Activity_%");
+            done = sysTaskExtMapper.selectCount(condition);
+
+            //create
+            LambdaQueryWrapper<SysTaskExt> condition1 = new LambdaQueryWrapper();
+            condition1.eq(SysTaskExt::getUser, user_id);
+            condition1.like(SysTaskExt::getNode, "startNode%");
+            create = sysTaskExtMapper.selectCount(condition1);
+
+
+            // to-do
+            LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
+            //c.eq(SysFlow::getSysDisable, 0);// 筛选禁用启用
+            List<SysFlow> enabledFlows = sysFlowMapper.selectList(c);
+            List<String> enabledFlowIds = new ArrayList<>();
+            if(Objects.nonNull(enabledFlows)){
+                for(SysFlow enabledFlow : enabledFlows){
+                    enabledFlowIds.add(enabledFlow.getId());
+                }
+            }
+
+            LambdaQueryWrapper<SysFlowExt> condition2 = new LambdaQueryWrapper();
+            condition2.eq(SysFlowExt::getOperation, user_id);
+            List<SysFlowExt> customUserTasks = sysFlowExtMapper.selectList(condition2);
+
+            if(Objects.nonNull(customUserTasks) && !customUserTasks.isEmpty()){
+                customUserTasks.stream().forEach(customUserTask -> {
+                    if(enabledFlowIds.contains(customUserTask.getHId())){
+                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).orderByTaskCreateTime().desc().list();
+                        if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                            actTasks.stream().forEach(actTask ->{
+                                if(Objects.nonNull(actTask)){
+                                    todo.getAndIncrement();
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            return ResponseResult.success("请求成功", MonitorResult.newInstance(done, todo.get(), create)).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), user_id).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+
+    }
+
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "type", value = "流程类型代码", dataType = "String", paramType = "query", example = ""),
@@ -137,6 +197,7 @@ public class TaskController {
 
             Map<String, Object> variables = Optional.ofNullable(tp.getConditions()).orElse(new HashMap<>());
             variables.put("creator", tp.getUserId());
+            variables.put("creatorName", tp.getUserName());
             ProcessInstance processInstance = runtimeService.startProcessInstanceById(def_id, tp.getType(), variables);//对某一个流程启用一个流程实例
             runtimeService.setProcessInstanceName(processInstance.getId(), tp.getDataId());
 
@@ -236,6 +297,7 @@ public class TaskController {
                 currentNode.setHId(lastNode.getHId());
                 currentNode.setNode(lastPoint.getTaskDefinitionKey());
                 currentNode.setUser(param.getUserId());
+                currentNode.setUserName(param.getUserName());
                 currentNode.setRecord(param.getOpinion());
                 currentNode.setOpinion(Operations.APPROVE.getCode());
                 Long now = System.currentTimeMillis();
@@ -270,6 +332,7 @@ public class TaskController {
                     }
 
                     endNode.setUser("");//system
+                    endNode.setUserName("");
                     endNode.setRecord("");//param.getOpinion()
                     endNode.setOpinion("");//Operations.APPROVE.getCode()
                     endNode.setTime(System.currentTimeMillis()+"");
@@ -308,6 +371,7 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(currentTask.getTaskDefinitionKey());
                 newNode.setUser(param.getUserId());
+                newNode.setUserName(param.getUserName());
                 newNode.setRecord(param.getOpinion());
                 newNode.setOpinion(Operations.RECALL.getCode());
                 Long now = System.currentTimeMillis();
@@ -346,6 +410,7 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(startTaskNode.getId());
                 newNode.setUser(param.getUserId());
+                newNode.setUserName(param.getUserName());
                 newNode.setRecord(param.getOpinion());
                 newNode.setOpinion(Operations.REJECT.getCode());
                 Long now = System.currentTimeMillis();
@@ -382,6 +447,7 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(endTaskNode.getId());
                 newNode.setUser(param.getUserId());
+                newNode.setUserName(param.getUserName());
                 newNode.setRecord(param.getOpinion());
                 newNode.setOpinion(Operations.CANCEL1.getCode());
                 Long now = System.currentTimeMillis();
@@ -418,6 +484,7 @@ public class TaskController {
                 newNode.setHId(currentNode.getHId());
                 newNode.setNode(endTaskNode.getId());
                 newNode.setUser(param.getUserId());
+                newNode.setUserName(param.getUserName());
                 newNode.setRecord(param.getOpinion());
                 newNode.setOpinion(Operations.CANCEL2.getCode());
                 Long now = System.currentTimeMillis();
@@ -561,19 +628,6 @@ public class TaskController {
                         List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).orderByTaskCreateTime().desc().list();
                         if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
                             actTasks.stream().forEach(actTask ->{
-                                //.taskId(actTask.getId())
-                                List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                                            .createHistoricVariableInstanceQuery()
-                                            .processInstanceId(actTask.getProcessInstanceId())
-                                            //.taskId(actTask.getId())
-                                            .variableName("userKey")
-                                            .orderByProcessInstanceId().desc()
-                                            .list();
-                                String userKey = "无";
-                                if(Objects.nonNull(varList) && !varList.isEmpty()){
-                                    userKey = String.valueOf(varList.get(0).getValue());
-                                }
-
                                 LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
                                 taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
                                 SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
@@ -584,7 +638,8 @@ public class TaskController {
                                         actTask.getProcessInstanceId(),
                                         actTask.getName()==null?customUserTask.getNode():actTask.getName(),
                                         customUserTask.getOperation(),
-                                        userKey,
+                                        customUserTask.getOperName(),
+                                        getVariableByInstanceId("creator", actTask.getProcessInstanceId(),"无"),
                                         actTask.getCreateTime().getTime()+"",
                                         System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
                                         sysTask
@@ -616,40 +671,6 @@ public class TaskController {
 		}
     }
 
-    @ApiOperation(value = "查询当前用户已完成的任务", notes = "查询当前用户已完成的任务")
-    @ApiImplicitParams({
-            @ApiImplicitParam(name = "userId", value = "用户id", dataType = "String", paramType = "query", example = ""),
-            @ApiImplicitParam(name = "pageIndex", value = "页码", dataType = "String", paramType = "query", example = ""),
-            @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
-    })
-    @GetMapping("/task/finished/user")
-    public ResponseEntity<?> getTaskFinishedByUser(@RequestParam String userId) {
-        try{
-            List<HistoricProcessInstance> instances = new ArrayList<>();
-
-            LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
-            condition.groupBy(SysTaskExt::getHId).select(SysTaskExt::getHId);
-            condition.eq(SysTaskExt::getUser, userId);
-            List<SysTaskExt> finishedTasks = sysTaskExtMapper.selectList(condition);
-
-            if(Objects.nonNull(finishedTasks) && !finishedTasks.isEmpty()){
-                List<String> hIds = finishedTasks.stream().map(SysTaskExt::getHId).collect(Collectors.toList());
-                LambdaQueryWrapper<SysTask> lambdaQuery2 = new QueryWrapper<SysTask>().lambda();
-                lambdaQuery2.in(SysTask::getId, hIds);
-                List<SysTask> tasksHeadList = sysTaskMapper.selectList(lambdaQuery2);
-                Set<String> instanceIds = tasksHeadList.stream().map(SysTask::getTaskId).collect(Collectors.toSet());
-                instances = historyService.createHistoricProcessInstanceQuery().processInstanceIds(instanceIds).orderByProcessInstanceStartTime().desc().listPage(0,300);
-            }
-
-            return ResponseResult.success("请求成功", instances).response();
-		} catch (BizException be) {
-			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
-		} catch (Exception ex) {
-            ex.printStackTrace();
-			return ResponseResult.error(ex.getMessage()).response();
-		}
-    }
-
     @ApiOperation(value = "根据主表id查询任务(节点)列表")
     @GetMapping("/task/sysTaskList/{id}")
     public ResponseEntity<?> getTaskByHeaderId(@PathVariable String id) {
@@ -669,17 +690,22 @@ public class TaskController {
     }
 
     @ApiOperation(value = "根据主表id查询任务(节点)列表")
-    @GetMapping("/task/sysTaskList/{head_id}/showHistory")
-    public ResponseEntity<?> getTaskWithByHeaderId(@PathVariable String head_id) {
+    @GetMapping("/task/list/{head_id}/{show_history}")
+    public ResponseEntity<?> getTaskWithByHeaderId(@PathVariable String head_id, @PathVariable boolean show_history) {
         try{
             LambdaQueryWrapper<SysTask> lambdaQuery = new QueryWrapper<SysTask>().lambda();
             lambdaQuery.eq(SysTask::getId, head_id);
             SysTask taskHeader = sysTaskMapper.selectOne(lambdaQuery);
             String dataId = taskHeader.getSId();
 
-            LambdaQueryWrapper<SysTask> lambdaQuery1 = new QueryWrapper<SysTask>().lambda();
-            lambdaQuery1.eq(SysTask::getSId, dataId);
-            List<SysTask> taskHeaders = sysTaskMapper.selectList(lambdaQuery1);
+            List<SysTask> taskHeaders = new ArrayList();
+            if(show_history){
+                LambdaQueryWrapper<SysTask> lambdaQuery1 = new QueryWrapper<SysTask>().lambda();
+                lambdaQuery1.eq(SysTask::getSId, dataId);
+                taskHeaders = sysTaskMapper.selectList(lambdaQuery1);
+            }else{
+                taskHeaders.add(taskHeader);
+            }
 
             Map<String, List<SysTaskExt>> m = new HashMap<String, List<SysTaskExt>>();
             taskHeaders.stream().forEach(header -> {
@@ -981,4 +1007,21 @@ public class TaskController {
 		}
 	}
 
+	private String getVariableByInstanceId(String key, String instId, String defaultVal){
+        String value = defaultVal;
+
+        List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                    .createHistoricVariableInstanceQuery()
+                    .processInstanceId(instId)
+                    .variableName(key)
+                    .list();
+        if(Objects.nonNull(varList) && !varList.isEmpty()){
+            value = String.valueOf(varList.get(0).getValue());
+        }
+
+        return value;
+    }
+    private String getVariableByInstanceId(String key, String instId){
+        return getVariableByInstanceId(key, instId, null);
+    }
 }

@@ -24,6 +24,8 @@ public class ProcessInstanceDTO{
 
     private String currentAssign;
 
+    private String currentAssignName;
+
     private String creator;
 
     private String createTime;

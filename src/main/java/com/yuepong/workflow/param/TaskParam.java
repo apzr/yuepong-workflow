@@ -18,6 +18,7 @@ public class TaskParam {
     public String type;
     public String route;
     public String userId;
+    public String userName;
     public String dataId;
     public Map<String, Object> conditions;
 

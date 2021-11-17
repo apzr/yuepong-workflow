@@ -68,6 +68,8 @@ public class SysTaskExtResult implements Comparable<SysTaskExtResult>{
         s.hId = taskInfo.getHId();
         s.node = taskInfo.getNode();
         s.nodeName = nodeName;
+        s.user = taskInfo.getUser();;
+        s.userName = taskInfo.getUserName();;
         s.userType = taskInfo.getUserType();
         s.record = taskInfo.getRecord();
         s.opinion = taskInfo.getOpinion();

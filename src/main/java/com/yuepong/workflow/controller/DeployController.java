@@ -807,7 +807,6 @@ public class DeployController {
                                              @RequestParam @Nullable Long pageSize) {//"032bf875-99b0-4c85-91c0-e128fc759565"
         ProcessInstancePager<ProcessInstanceDTO> p;
         try{
-            List<ProcessInstanceDTO> instanceDTOS = new ArrayList<>();
             HistoricProcessInstanceQuery instanceHistoryListQuery = historyService.createHistoricProcessInstanceQuery();
             instanceHistoryListQuery.orderByProcessInstanceStartTime().desc();
             if(Objects.nonNull(instId))
@@ -819,55 +818,9 @@ public class DeployController {
 
             p = new ProcessInstancePager(null, pageIndex, pageSize, instanceHistoryListQuery.count());
             List<HistoricProcessInstance> instanceHistoryList = instanceHistoryListQuery.listPage(p.getFirst().intValue(), p.getPageSize().intValue());
-            instanceHistoryList.stream().forEach(processInstance -> {
-                ProcessInstanceDTO pi = new ProcessInstanceDTO();
-                pi.setInstanceId(processInstance.getId());
-                pi.setCreateTime(processInstance.getStartTime().getTime()+"");
-                pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
-                pi.setStatus("结束");
 
-                List<HistoricVariableInstance> varList = processEngine.getHistoryService()
-                            .createHistoricVariableInstanceQuery()
-                            .processInstanceId(processInstance.getId())
-                            //.taskId(actTask.getId())
-                            .variableName("creator")
-                            .list();
-                String creator = "无";
-                if(Objects.nonNull(varList) && !varList.isEmpty()){
-                    creator = String.valueOf(varList.get(0).getValue());
-                }
-                pi.setCreator(creator);
+            p.setData(fillInstanceDTOByInstance(instanceHistoryList));
 
-                LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
-                taskCondition.eq(SysTask::getTaskId, processInstance.getId());
-                SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
-                if(Objects.nonNull(sysTask)){
-                    pi.setHeader(sysTask);
-                }
-
-                org.activiti.engine.task.Task actTask = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
-                if(Objects.nonNull(actTask)){
-                    pi.setCurrentNodeName(actTask.getName());
-                    pi.setCurrentNodeId(actTask.getTaskDefinitionKey());
-                    pi.setStatus(actTask.isSuspended() ? "挂起" : "运行");
-
-                    LambdaQueryWrapper<SysFlow> flowCondition = new LambdaQueryWrapper<>();
-                    flowCondition.eq(SysFlow::getDeploymentId, processInstance.getDeploymentId());
-                    SysFlow sysFlow = sysFlowMapper.selectOne(flowCondition);
-                    if(Objects.nonNull(sysFlow)){
-                        LambdaQueryWrapper<SysFlowExt> flowExtCondition = new LambdaQueryWrapper<>();
-                        flowExtCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
-                        flowExtCondition.eq(SysFlowExt::getHId, sysFlow.getId());
-                        SysFlowExt sysFlowExt = sysFlowExtMapper.selectOne(flowExtCondition);
-                        if(sysFlowExt!=null)
-                            pi.setCurrentAssign(sysFlowExt.getOperation());
-                    }
-                }
-
-                instanceDTOS.add(pi);
-            });
-
-            p.setData(instanceDTOS);
             return ResponseResult.success("请求成功", p).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
@@ -875,6 +828,108 @@ public class DeployController {
             ex.printStackTrace();
 			return ResponseResult.error(ex.getMessage()).response();
 		}
+    }
+
+    @ApiOperation(value = "查询当前用户已完成的实例", notes = "查询当前用户已完成的实例")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "userId", value = "用户id", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageIndex", value = "页码", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
+    })
+    @GetMapping("/process/instanceList/user")
+    public ResponseEntity<?> getTaskFinishedByUser(@RequestParam String userId) {
+        try{
+            List<ProcessInstanceDTO> instanceDTOS = null;
+
+            LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
+            condition.groupBy(SysTaskExt::getHId).select(SysTaskExt::getHId);
+            condition.eq(SysTaskExt::getUser, userId);
+            List<SysTaskExt> finishedTasks = sysTaskExtMapper.selectList(condition);
+
+            if(Objects.nonNull(finishedTasks) && !finishedTasks.isEmpty()){
+                List<String> hIds = finishedTasks.stream().map(SysTaskExt::getHId).collect(Collectors.toList());
+                LambdaQueryWrapper<SysTask> lambdaQuery2 = new QueryWrapper<SysTask>().lambda();
+                lambdaQuery2.in(SysTask::getId, hIds);
+                List<SysTask> tasksHeadList = sysTaskMapper.selectList(lambdaQuery2);
+                Set<String> instanceIds = tasksHeadList.stream().map(SysTask::getTaskId).collect(Collectors.toSet());
+
+                Calendar now = Calendar.getInstance();
+                now.add(Calendar.DAY_OF_MONTH, -30);
+                List<HistoricProcessInstance> instances = historyService.createHistoricProcessInstanceQuery()
+                        .processInstanceIds(instanceIds)
+                        .startedAfter(now.getTime())
+                        .orderByProcessInstanceStartTime().desc()
+                        .list();
+
+                instanceDTOS = fillInstanceDTOByInstance(instances);
+            }
+
+            return ResponseResult.success("请求成功", instanceDTOS).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    /**
+     * 组织数据
+     *
+     * @param instances
+     * @return void
+     * @author apr
+     * @date 2021/11/17 10:37
+     */
+    private List<ProcessInstanceDTO> fillInstanceDTOByInstance(List<HistoricProcessInstance> instances) {
+        List<ProcessInstanceDTO> instanceDTOS = new ArrayList<>();
+
+        if(instances ==null)
+            return instanceDTOS;
+
+        instances.stream().forEach(processInstance -> {
+            ProcessInstanceDTO pi = new ProcessInstanceDTO();
+            pi.setInstanceId(processInstance.getId());
+            pi.setCreateTime(processInstance.getStartTime().getTime()+"");
+            pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
+            pi.setStatus("完成");
+
+            String creator = getVariableByInstanceId("creator", processInstance.getId(), "无");
+            pi.setCreator(creator);
+
+            LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+            taskCondition.eq(SysTask::getTaskId, processInstance.getId());
+            SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+            if(Objects.nonNull(sysTask)){
+                pi.setHeader(sysTask);
+                pi.setStatus(ProcessStatus.CODE_TO_MSG(sysTask.getStatus()));
+            }
+
+            org.activiti.engine.task.Task actTask = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
+            if(Objects.nonNull(actTask)){
+                pi.setCurrentNodeName(actTask.getName());
+                pi.setCurrentNodeId(actTask.getTaskDefinitionKey());
+                pi.setStatus(actTask.isSuspended() ? "挂起" : "运行");
+
+                LambdaQueryWrapper<SysFlow> flowCondition = new LambdaQueryWrapper<>();
+                flowCondition.eq(SysFlow::getDeploymentId, processInstance.getDeploymentId());
+                SysFlow sysFlow = sysFlowMapper.selectOne(flowCondition);
+                if(Objects.nonNull(sysFlow)){
+                    LambdaQueryWrapper<SysFlowExt> flowExtCondition = new LambdaQueryWrapper<>();
+                    flowExtCondition.eq(SysFlowExt::getNode, actTask.getTaskDefinitionKey());
+                    flowExtCondition.eq(SysFlowExt::getHId, sysFlow.getId());
+                    SysFlowExt sysFlowExt = sysFlowExtMapper.selectOne(flowExtCondition);
+                    if(sysFlowExt!=null){
+                        pi.setCurrentAssign(sysFlowExt.getOperation());
+                        pi.setCurrentAssignName(sysFlowExt.getOperName());
+                    }
+                }
+            }
+
+            instanceDTOS.add(pi);
+        });
+
+        return instanceDTOS;
     }
 
     /**
@@ -971,4 +1026,21 @@ public class DeployController {
 //        }
     }
 
+    private String getVariableByInstanceId(String key, String instId, String defaultVal){
+        String value = defaultVal;
+
+        List<HistoricVariableInstance> varList = processEngine.getHistoryService()
+                    .createHistoricVariableInstanceQuery()
+                    .processInstanceId(instId)
+                    .variableName(key)
+                    .list();
+        if(Objects.nonNull(varList) && !varList.isEmpty()){
+            value = String.valueOf(varList.get(0).getValue());
+        }
+
+        return value;
+    }
+    private String getVariableByInstanceId(String key, String instId){
+        return getVariableByInstanceId(key, instId, null);
+    }
 }

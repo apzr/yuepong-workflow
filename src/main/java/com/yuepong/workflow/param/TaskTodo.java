@@ -16,7 +16,8 @@ public class TaskTodo {
     private String id;//任务id
     private String procInstId;//任务id
     private String node;//审批环节
-    private String executor;//执行人
+    private String executor;//执行人id
+    private String executorName;//执行人名
     private String creator ;//发起人
     private String createTime;//创建时间
     private String costTime;//停留时间
@@ -25,11 +26,13 @@ public class TaskTodo {
 
     public TaskTodo(){};
 
-    public TaskTodo(String id, String procInstId, String node, String executor, String creator, String create, String cost,SysTask header){
+    public TaskTodo(String id, String procInstId, String node, String executor,
+                    String executorName, String creator, String create, String cost,SysTask header){
         this.id = id;
         this.procInstId = procInstId;
         this.node = node;
         this.executor = executor;
+        this.executorName = executorName;
         this.creator = creator;
         this.createTime = create;
         this.costTime = cost;

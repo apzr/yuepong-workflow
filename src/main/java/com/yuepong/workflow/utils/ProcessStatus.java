@@ -12,7 +12,7 @@ public enum ProcessStatus {
 
     ACTIVE{
         public String getMsg(){
-            return "激活";
+            return "运行";
         }
         public String getCode(){
             return "1";
@@ -36,7 +36,7 @@ public enum ProcessStatus {
     },
     SHUTDOWN{
         public String getMsg(){
-            return "作废";
+            return "异常结束";
         }
         public String getCode(){
             return "4";
@@ -45,4 +45,18 @@ public enum ProcessStatus {
 
     public abstract String getMsg();//定义抽象方法
     public abstract String getCode();//定义抽象方法
+
+    public static String CODE_TO_MSG(String code){
+        String name = "";
+        if(ProcessStatus.ACTIVE.getCode().equals(code)){
+            name = (ProcessStatus.ACTIVE.getMsg());
+        }else if(ProcessStatus.SUSPENDED.getCode().equals(code)){
+            name = (ProcessStatus.SUSPENDED.getMsg());
+        }else if(ProcessStatus.COMPLETE.getCode().equals(code)){
+            name = (ProcessStatus.COMPLETE.getMsg());
+        }else if(ProcessStatus.SHUTDOWN.getCode().equals(code)){
+            name = (ProcessStatus.SHUTDOWN.getMsg());
+        }
+        return name;
+    };
 }

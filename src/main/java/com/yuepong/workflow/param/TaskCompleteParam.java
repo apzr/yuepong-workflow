@@ -18,6 +18,7 @@ public class TaskCompleteParam {
     public String opinion;
     public String command;
     public String userId;
+    public String userName;
     public String[] role;
     public Map<String, Object> value;
 }
