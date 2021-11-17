@@ -18,15 +18,17 @@ public class ProcessInstanceDTO{
 
     private String status;
 
+    private String currentNodeId;//节点
+
     private String currentNodeName;
 
-    private String currentNodeId;
-
-    private String currentAssign;
+    private String currentAssign;//当前执行人
 
     private String currentAssignName;
 
-    private String creator;
+    private String creator;//发起人
+
+    private String creatorName;
 
     private String createTime;
 

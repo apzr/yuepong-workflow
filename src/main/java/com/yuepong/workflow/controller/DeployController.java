@@ -896,6 +896,8 @@ public class DeployController {
 
             String creator = getVariableByInstanceId("creator", processInstance.getId(), "无");
             pi.setCreator(creator);
+            String creatorName = getVariableByInstanceId("creatorName", processInstance.getId(), "无");
+            pi.setCreatorName(creatorName);
 
             LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
             taskCondition.eq(SysTask::getTaskId, processInstance.getId());

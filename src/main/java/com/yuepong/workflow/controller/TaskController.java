@@ -228,6 +228,7 @@ public class TaskController {
             String startNodeKey = getStartKey(def_id);
             startNode.setNode(startNodeKey);
             startNode.setUser(tp.getUserId());
+            startNode.setUserName(tp.getUserName());
             startNode.setRecord("");
             startNode.setOpinion("");
             startNode.setTime(System.currentTimeMillis()+"");
@@ -563,12 +564,13 @@ public class TaskController {
                 if(Objects.nonNull(flow)){
                     String type = node.getUserType();
                     String values = node.getOperation();
+                    System.err.println("type="+type+"  values="+values);
                     if(Objects.nonNull(values)){
                         List<String> passCode = Arrays.asList(values.split(","));
                         if("user".equals(type) ){
                             match = (passCode.contains(param.getUserId()));
                         }else if("role".equals(type)){
-                            match = (Collections.disjoint(Arrays.asList(param.getRole()), passCode));
+                            match = (!Collections.disjoint(Arrays.asList(param.getRole()), passCode));
                         }
                     }
                 }
@@ -633,13 +635,16 @@ public class TaskController {
                                 SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
 
                                 if(Objects.nonNull(actTask)){
+                                    String creator = getVariableByInstanceId("creator", actTask.getProcessInstanceId(),"无");
+                                    String creatorName = getVariableByInstanceId("creatorName", actTask.getProcessInstanceId(), "无");
                                     TaskTodo tt = new TaskTodo(
                                         actTask.getId(),
                                         actTask.getProcessInstanceId(),
                                         actTask.getName()==null?customUserTask.getNode():actTask.getName(),
                                         customUserTask.getOperation(),
                                         customUserTask.getOperName(),
-                                        getVariableByInstanceId("creator", actTask.getProcessInstanceId(),"无"),
+                                        creator,
+                                        creatorName,
                                         actTask.getCreateTime().getTime()+"",
                                         System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
                                         sysTask
