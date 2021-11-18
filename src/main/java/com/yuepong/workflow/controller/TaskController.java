@@ -635,8 +635,8 @@ public class TaskController {
                                 SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
 
                                 if(Objects.nonNull(actTask)){
-                                    String creator = getVariableByInstanceId("creator", actTask.getProcessInstanceId(),"无");
-                                    String creatorName = getVariableByInstanceId("creatorName", actTask.getProcessInstanceId(), "无");
+                                    String creator = getVariableByInstanceId("creator", actTask.getProcessInstanceId());
+                                    String creatorName = getVariableByInstanceId("creatorName", actTask.getProcessInstanceId());
                                     TaskTodo tt = new TaskTodo(
                                         actTask.getId(),
                                         actTask.getProcessInstanceId(),

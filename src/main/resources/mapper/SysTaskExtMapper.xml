@@ -18,4 +18,16 @@
     <sql id="Base_Column_List">
         id, h_id, node, user, user_type, record, opinion, time, oper_time
     </sql>
+    <select id="selectLatestNodes" resultType="com.yuepong.workflow.dto.SysTaskExt">
+        SELECT * FROM s_sys_task_b
+        WHERE h_id = #{hid}
+        AND node LIKE 'Activity_%'
+        AND time IN(
+            SELECT MAX(time) as tt
+            FROM s_sys_task_b
+            WHERE h_id = #{hid}
+            AND node LIKE 'Activity_%'
+            GROUP BY node
+        )
+    </select>
 </mapper>

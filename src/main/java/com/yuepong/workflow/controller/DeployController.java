@@ -25,6 +25,7 @@ import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.history.HistoricProcessInstanceQuery;
+import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
 import org.activiti.engine.repository.Deployment;
 import org.activiti.engine.repository.Model;
@@ -517,6 +518,73 @@ public class DeployController {
 		}
     }
 
+    @ApiOperation(value = "根据单号查询流程的最新节点列表", notes = "结果集会过滤掉起始、连线等类型, 只返回任务节点")
+    @GetMapping("/process/{data_id}/latestNodes")
+    public ResponseEntity<?> processLatestNodes(@PathVariable String data_id) {
+        try {
+            List<SysTaskExtResult> result = new ArrayList();
+            List<SysTaskExt> tasks = new ArrayList<>();
+
+            List<SysTask> tasksHeader = sysTaskMapper.selectBySId(data_id);
+            Set<String> instanceIds = tasksHeader.stream().map(SysTask::getTaskId).collect(Collectors.toSet());
+            if(Objects.nonNull(instanceIds) && !instanceIds.isEmpty()){
+                String instanceId = getLatestInstance(instanceIds);
+
+                LambdaQueryWrapper<SysTask> q = new QueryWrapper<SysTask>().lambda();
+                q.eq(SysTask::getTaskId, instanceId);
+                q.eq(SysTask::getSId, data_id);
+                SysTask sysTask = sysTaskMapper.selectOne(q);
+
+                tasks = sysTaskExtMapper.selectLatestNodes( sysTask.getId());
+                tasks.stream().forEach(t->{
+                    HistoricTaskInstance nodeInfo = historyService.createHistoricTaskInstanceQuery()
+                            .processInstanceId(instanceId)
+                            .taskDefinitionKey(t.getNode())
+                            .singleResult();
+
+                    String nodeName = null;
+                    if(Objects.nonNull(nodeInfo))
+                        nodeName = nodeInfo.getName();
+
+                    SysTaskExtResult tr = SysTaskExtResult.newInstance(t, nodeName);
+                    result.add(tr);
+                });
+            }
+
+            Collections.sort(result);
+
+			return ResponseResult.success("请求成功", result).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    /**
+     * get Latest Instance
+     *
+     * @param instanceIds 
+     * @return java.lang.String
+     * @author apr
+     * @date 2021/11/18 10:54
+     */
+    private String getLatestInstance(Set<String> instanceIds) {
+        String instanceId = null;
+
+        Date tmp = null;
+        for (String instId : instanceIds) {
+            HistoricProcessInstance inst = historyService.createHistoricProcessInstanceQuery().processInstanceId(instId).singleResult();
+            Date d = inst.getStartTime();
+            if(Objects.isNull(tmp) || d.after(tmp)){
+                instanceId = instId;
+                tmp = d;
+            }
+        }
+
+        return instanceId;
+    }
+
     @GetMapping("process/active/{instance_id}")
     @ApiOperation(value = "激活或挂起流程", notes = "激活或挂起流程")
     public ResponseEntity<?> Suspended(@PathVariable String instance_id){
@@ -894,9 +962,9 @@ public class DeployController {
             pi.setEndTime(processInstance.getEndTime() == null ? "无" : processInstance.getEndTime().getTime()+"");
             pi.setStatus("完成");
 
-            String creator = getVariableByInstanceId("creator", processInstance.getId(), "无");
+            String creator = getVariableByInstanceId("creator", processInstance.getId());
             pi.setCreator(creator);
-            String creatorName = getVariableByInstanceId("creatorName", processInstance.getId(), "无");
+            String creatorName = getVariableByInstanceId("creatorName", processInstance.getId());
             pi.setCreatorName(creatorName);
 
             LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();

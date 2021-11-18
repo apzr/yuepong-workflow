@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 /**
  * SysFlowMapper
  * <p>
@@ -17,5 +19,5 @@ import org.springframework.transaction.annotation.Transactional;
 @Mapper
 @Component
 public interface SysTaskExtMapper extends BaseMapper<SysTaskExt> {
-
+    List<SysTaskExt> selectLatestNodes(String hid);
 }
