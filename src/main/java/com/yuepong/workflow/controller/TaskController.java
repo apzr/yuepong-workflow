@@ -167,6 +167,85 @@ public class TaskController {
 
     }
 
+    @ApiOperation(value = "查询用户待办已办和创建", notes = "根据用户ID查询用户待办已办和创建")
+    @PostMapping("/user/monitor")
+    public ResponseEntity<?> getUserMonitorNew(@RequestBody TaskTodoParam ttp) {
+        try{
+            int done, create;
+            AtomicInteger todo= new AtomicInteger(0);
+
+            //done
+            LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
+            condition.eq(SysTaskExt::getUser, ttp.getUserId());
+            condition.like(SysTaskExt::getNode, "Activity_%");
+            done = sysTaskExtMapper.selectCount(condition);
+
+            //create
+            LambdaQueryWrapper<SysTaskExt> condition1 = new LambdaQueryWrapper();
+            condition1.eq(SysTaskExt::getUser, ttp.getUserId());
+            condition1.like(SysTaskExt::getNode, "startNode%");
+            create = sysTaskExtMapper.selectCount(condition1);
+
+
+            // to-do
+            LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
+            //c.eq(SysFlow::getSysDisable, 0);// 筛选禁用启用
+            List<SysFlow> enabledFlows = sysFlowMapper.selectList(c);
+            List<String> enabledFlowIds = new ArrayList<>();
+            if(Objects.nonNull(enabledFlows)){
+                for(SysFlow enabledFlow : enabledFlows){
+                    enabledFlowIds.add(enabledFlow.getId());
+                }
+            }
+
+            LambdaQueryWrapper<SysFlowExt> condition2 = new LambdaQueryWrapper();
+            condition2.eq(SysFlowExt::getOperation, ttp.getUserId());
+            List<SysFlowExt> customUserTasks = sysFlowExtMapper.selectList(condition2);
+
+            if(Objects.nonNull(customUserTasks) && !customUserTasks.isEmpty()){
+                customUserTasks.stream().forEach(customUserTask -> {
+                    if(enabledFlowIds.contains(customUserTask.getHId())){
+                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).orderByTaskCreateTime().desc().list();
+                        if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                            actTasks.stream().forEach(actTask ->{
+                                if(Objects.nonNull(actTask)){
+                                    todo.getAndIncrement();
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            LambdaQueryWrapper<SysFlowExt> condition3 = new LambdaQueryWrapper();
+            condition3.in(SysFlowExt::getOperation, ttp.getRole());
+            List<SysFlowExt> customRoleTasks = sysFlowExtMapper.selectList(condition3);
+
+            if(Objects.nonNull(customRoleTasks) && !customRoleTasks.isEmpty()){
+                customRoleTasks.stream().forEach(customRoleTask -> {
+                    if(enabledFlowIds.contains(customRoleTask.getHId())){
+                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customRoleTask.getNode()).orderByTaskCreateTime().desc().list();
+                        if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                            actTasks.stream().forEach(actTask ->{
+                                if(Objects.nonNull(actTask)){
+                                    todo.getAndIncrement();
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            return ResponseResult.success("请求成功", MonitorResult.newInstance(done, todo.get(), create)).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), ttp).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+
+    }
+
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
     @ApiImplicitParams({
             @ApiImplicitParam(name = "type", value = "流程类型代码", dataType = "String", paramType = "query", example = ""),
@@ -684,7 +763,7 @@ public class TaskController {
             @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
     })
     @PostMapping("/task/user")
-    public ResponseEntity<?> getTaskByUserROle(@RequestBody TaskTodoParam ttp) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    public ResponseEntity<?> getTaskByUserRole(@RequestBody TaskTodoParam ttp) {//"032bf875-99b0-4c85-91c0-e128fc759565"
         try{
             TaskTodoPager<TaskTodo> p;
             List<TaskTodo> tasks = new ArrayList<>();
