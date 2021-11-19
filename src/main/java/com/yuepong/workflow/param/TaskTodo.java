@@ -12,7 +12,7 @@ import lombok.Data;
  * @date 2021/11/01 11:34:57
  **/
 @Data
-public class TaskTodo {
+public class TaskTodo implements Comparable<TaskTodo>{
     private String id;//任务id
     private String procInstId;//任务id
     private String node;//审批环节
@@ -39,5 +39,22 @@ public class TaskTodo {
         this.createTime = create;
         this.costTime = cost;
         this.header = header;
+    }
+
+    @Override
+    public int compareTo(TaskTodo s) {
+        try{
+            Long.parseLong(this.createTime);
+            Long.parseLong(s.getCreateTime());
+        }catch(Exception e){
+            return -1;
+        }
+
+        if(this.createTime.equals(s.getCreateTime()))
+            return 0;
+        else if(Long.parseLong(this.createTime) > Long.parseLong(s.getCreateTime()))
+            return -1;
+        else
+            return 1;
     }
 }

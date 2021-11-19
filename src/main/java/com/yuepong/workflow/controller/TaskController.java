@@ -676,6 +676,101 @@ public class TaskController {
 		}
     }
 
+    @ApiOperation(value = "查询当前用户的任务", notes = "查询当前用户的任务")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "userId", value = "用户id", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "role", value = "用户角色id", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageIndex", value = "页码", dataType = "String", paramType = "query", example = ""),
+            @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
+    })
+    @PostMapping("/task/user")
+    public ResponseEntity<?> getTaskByUserROle(@RequestBody TaskTodoParam ttp) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+            TaskTodoPager<TaskTodo> p;
+            List<TaskTodo> tasks = new ArrayList<>();
+
+            //筛选禁用启用
+            LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
+            //c.eq(SysFlow::getSysDisable, 0);
+            List<SysFlow> enabledFlows = sysFlowMapper.selectList(c);
+            List<String> enabledFlowIds = new ArrayList<>();
+            if(Objects.nonNull(enabledFlows)){
+                //enabledFlowIds = enabledFlows.stream().map(SysFlow::getId).collect(Collectors.toList());
+                for(SysFlow enabledFlow : enabledFlows){
+                    enabledFlowIds.add(enabledFlow.getId());
+                }
+            }
+
+            List<SysFlowExt> customUserTasks = new ArrayList();
+
+            LambdaQueryWrapper<SysFlowExt> condition1 = new LambdaQueryWrapper();
+            condition1.eq(SysFlowExt::getOperation, ttp.getUserId());
+            condition1.eq(SysFlowExt::getUserType, "user");
+            List<SysFlowExt> customUserTasks1 = sysFlowExtMapper.selectList(condition1);
+            if( Objects.nonNull(customUserTasks1) )
+                customUserTasks.addAll(customUserTasks1);
+
+            LambdaQueryWrapper<SysFlowExt> condition2 = new LambdaQueryWrapper();
+            condition2.in(SysFlowExt::getOperation, ttp.getRole());
+            condition2.eq(SysFlowExt::getUserType, "role");
+            List<SysFlowExt> customUserTasks2 = sysFlowExtMapper.selectList(condition2);
+            if( Objects.nonNull(customUserTasks2) )
+                customUserTasks.addAll(customUserTasks2);
+
+            if(!customUserTasks.isEmpty()){
+                customUserTasks.stream().forEach(customUserTask -> {
+                    if(enabledFlowIds.contains(customUserTask.getHId())){
+                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customUserTask.getNode()).orderByTaskCreateTime().desc().list();
+                        if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                            actTasks.stream().forEach(actTask ->{
+                                LambdaQueryWrapper<SysTask> taskCondition = new LambdaQueryWrapper<>();
+                                taskCondition.eq(SysTask::getTaskId, actTask.getProcessInstanceId());
+                                SysTask sysTask = sysTaskMapper.selectOne(taskCondition);
+
+                                if(Objects.nonNull(actTask)){
+                                    String creator = getVariableByInstanceId("creator", actTask.getProcessInstanceId());
+                                    String creatorName = getVariableByInstanceId("creatorName", actTask.getProcessInstanceId());
+                                    TaskTodo tt = new TaskTodo(
+                                        actTask.getId(),
+                                        actTask.getProcessInstanceId(),
+                                        actTask.getName()==null?customUserTask.getNode():actTask.getName(),
+                                        customUserTask.getOperation(),
+                                        customUserTask.getOperName(),
+                                        creator,
+                                        creatorName,
+                                        actTask.getCreateTime().getTime()+"",
+                                        System.currentTimeMillis()-actTask.getCreateTime().getTime()+"",
+                                        sysTask
+                                    );
+
+                                    tasks.add(tt);
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            Collections.sort(tasks);
+
+            p = new TaskTodoPager(null, ttp.getPageIndex(), ttp.getPageSize(), new Long(tasks.size()));
+            int startIndex = p.getFirst().intValue();
+            int endIndex = p.getFirst().intValue() + p.getPageSize().intValue();
+            List<TaskTodo> taskPage = tasks.subList(
+                    startIndex>tasks.size()?tasks.size():startIndex,
+                    endIndex>tasks.size()?tasks.size():endIndex
+            );
+            p.setData(taskPage);
+
+            return ResponseResult.success("请求成功", p).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
     @ApiOperation(value = "根据主表id查询任务(节点)列表")
     @GetMapping("/task/sysTaskList/{id}")
     public ResponseEntity<?> getTaskByHeaderId(@PathVariable String id) {
@@ -747,9 +842,9 @@ public class TaskController {
 		}
     }
 
-    @ApiOperation(value = "查询是否开始流程")
+    @ApiOperation(value = "查询流程是否开始")
     @GetMapping("/task/startStatus/{data_id}")
-    public ResponseEntity<?> getStartStatusByDataId(@PathVariable String data_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+    public ResponseEntity<?> getRunStatusByDataId(@PathVariable String data_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
         try{
             boolean isStart = false;
             List<SysTask> tasksHeader = sysTaskMapper.selectEnabledBySId(data_id);
@@ -759,6 +854,29 @@ public class TaskController {
                 List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
 
                 isStart =  (Objects.nonNull(tasksList) && tasksList.size() > 1);
+            }
+
+            return ResponseResult.success("请求成功", isStart).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), data_id).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+            return ResponseResult.obtain(CodeMsgs.SYSTEM_BASE_ERROR,ex.getMessage(), data_id).response();
+		}
+    }
+
+        @ApiOperation(value = "查询是否处于开始节点")
+    @GetMapping("/task/beginStatus/{data_id}")
+    public ResponseEntity<?> getStartStatusByDataId(@PathVariable String data_id) {//"032bf875-99b0-4c85-91c0-e128fc759565"
+        try{
+            boolean isStart = false;
+            List<SysTask> tasksHeader = sysTaskMapper.selectEnabledBySId(data_id);
+            if(Objects.nonNull(tasksHeader) && !tasksHeader.isEmpty()){
+                LambdaQueryWrapper<SysTaskExt> lambdaQuery2 = new QueryWrapper<SysTaskExt>().lambda();
+                lambdaQuery2.eq(SysTaskExt::getHId, tasksHeader.get(0).getId());
+                List<SysTaskExt> tasksList = sysTaskExtMapper.selectList(lambdaQuery2);
+
+                isStart =  (Objects.nonNull(tasksList) && tasksList.size() == 1);
             }
 
             return ResponseResult.success("请求成功", isStart).response();
