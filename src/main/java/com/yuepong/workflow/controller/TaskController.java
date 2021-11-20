@@ -21,10 +21,12 @@ import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
+import org.activiti.engine.impl.RepositoryServiceImpl;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
 import org.activiti.engine.impl.interceptor.CommandContext;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
+import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
 import org.activiti.engine.repository.ProcessDefinition;
@@ -175,8 +177,11 @@ public class TaskController {
             AtomicInteger todo= new AtomicInteger(0);
 
             //done
+            Calendar now = Calendar.getInstance();
+            now.add(Calendar.DAY_OF_MONTH, -30);
             LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
             condition.eq(SysTaskExt::getUser, ttp.getUserId());
+            condition.gt(SysTaskExt::getTime, now.getTime().getTime());
             condition.like(SysTaskExt::getNode, "Activity_%");
             done = sysTaskExtMapper.selectCount(condition);
 
@@ -244,6 +249,38 @@ public class TaskController {
 			return ResponseResult.error(ex.getMessage()).response();
 		}
 
+    }
+
+    @ApiOperation(value = "是否是最后一步")
+    @PostMapping("/task/isLast/{data_id}")
+    public ResponseEntity<?> getIsLastNode(@PathVariable String data_id) {
+	    try{
+	        boolean isLast;
+
+	        List<SysTask> taskHeads = sysTaskMapper.selectActedBySId(data_id);
+            if(Objects.isNull(taskHeads) || taskHeads.isEmpty())
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到流程实例ID", data_id).response();
+
+            //1. 获取任务当前节点信息
+            SysTask taskHead = taskHeads.get(0);
+            String processInstanceId = taskHead.getTaskId();
+            Task t = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+            if(Objects.isNull(t))
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR, "未获取到任务", data_id).response();
+
+            Collection<FlowElement> allNodes = getNodes(t.getProcessDefinitionId());
+            List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(t.getTaskDefinitionKey())).collect(Collectors.toList());
+            FlowNode currentElement = (FlowNode)currentElements.get(0);
+            FlowElement node = currentElement.getOutgoingFlows().get(0).getTargetFlowElement();
+            isLast = (node instanceof EndEvent);
+
+            return ResponseResult.success("请求成功", isLast).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
     }
 
     @ApiOperation(value = "创建任务", notes = "根据流程创建一个任务")
@@ -789,6 +826,19 @@ public class TaskController {
             if( Objects.nonNull(customUserTasks1) )
                 customUserTasks.addAll(customUserTasks1);
 
+
+            //TODO: JDBC Connection [com.mysql.cj.jdbc.ConnectionImpl@25f6cf5e] will not be managed by Spring
+            //==>  Preparing: SELECT id,h_id,node,node_type,node_skip,field,conditions,value,operation,oper_name,user_type,next_node FROM s_sys_flow_b WHERE (operation IN () AND user_type = ?)
+            //==> Parameters: role(String)
+            //Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@314cd5ff]
+            //org.springframework.jdbc.BadSqlGrammarException:
+            //### Error querying database.  Cause: java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ') AND user_type = 'role')' at line 3
+            //### The error may exist in com/yuepong/workflow/mapper/SysFlowExtMapper.java (best guess)
+            //### The error may involve defaultParameterMap
+            //### The error occurred while setting parameters
+            //### SQL: SELECT  id,h_id,node,node_type,node_skip,field,conditions,value,operation,oper_name,user_type,next_node  FROM s_sys_flow_b     WHERE (operation IN () AND user_type = ?)
+            //### Cause: java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ') AND user_type = 'role')' at line 3
+            //; bad SQL grammar []; nested exception is java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ') AND user_type = 'role')' at line 3
             LambdaQueryWrapper<SysFlowExt> condition2 = new LambdaQueryWrapper();
             condition2.in(SysFlowExt::getOperation, ttp.getRole());
             condition2.eq(SysFlowExt::getUserType, "role");
@@ -1226,4 +1276,5 @@ public class TaskController {
     private String getVariableByInstanceId(String key, String instId){
         return getVariableByInstanceId(key, instId, null);
     }
+
 }
