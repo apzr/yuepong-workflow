@@ -222,23 +222,26 @@ public class TaskController {
                 });
             }
 
-            LambdaQueryWrapper<SysFlowExt> condition3 = new LambdaQueryWrapper();
-            condition3.in(SysFlowExt::getOperation, ttp.getRole());
-            List<SysFlowExt> customRoleTasks = sysFlowExtMapper.selectList(condition3);
+            String[] roles = ttp.getRole();
+            if(Objects.nonNull(roles) && roles.length>0 ){
+                LambdaQueryWrapper<SysFlowExt> condition3 = new LambdaQueryWrapper();
+                condition3.in(SysFlowExt::getOperation, ttp.getRole());
+                List<SysFlowExt> customRoleTasks = sysFlowExtMapper.selectList(condition3);
 
-            if(Objects.nonNull(customRoleTasks) && !customRoleTasks.isEmpty()){
-                customRoleTasks.stream().forEach(customRoleTask -> {
-                    if(enabledFlowIds.contains(customRoleTask.getHId())){
-                        List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customRoleTask.getNode()).orderByTaskCreateTime().desc().list();
-                        if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
-                            actTasks.stream().forEach(actTask ->{
-                                if(Objects.nonNull(actTask)){
-                                    todo.getAndIncrement();
-                                }
-                            });
+                if(Objects.nonNull(customRoleTasks) && !customRoleTasks.isEmpty()){
+                    customRoleTasks.stream().forEach(customRoleTask -> {
+                        if(enabledFlowIds.contains(customRoleTask.getHId())){
+                            List<Task> actTasks = taskService.createTaskQuery().active().taskDefinitionKey(customRoleTask.getNode()).orderByTaskCreateTime().desc().list();
+                            if(Objects.nonNull(actTasks) && !actTasks.isEmpty()){
+                                actTasks.stream().forEach(actTask ->{
+                                    if(Objects.nonNull(actTask)){
+                                        todo.getAndIncrement();
+                                    }
+                                });
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
 
             return ResponseResult.success("请求成功", MonitorResult.newInstance(done, todo.get(), create)).response();
