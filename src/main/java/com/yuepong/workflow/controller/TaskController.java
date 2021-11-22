@@ -97,6 +97,16 @@ public class TaskController {
                 approve = permissionCheck(tc, current);
                 tc.setCommand("5");
                 back = permissionCheck(tc, current);
+                //如果不是第一个节点, 撤回直接等于false;
+                Collection<FlowElement> allNodes = getNodes(current.getProcessDefinitionId());
+                if(Objects.nonNull(allNodes)){
+                    List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(current.getTaskDefinitionKey())).collect(Collectors.toList());
+                    FlowNode currentElement = (FlowNode)currentElements.get(0);
+                    FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();
+                    if(prevNode!=null && !(prevNode instanceof StartEvent)){
+                        back = false;
+                    }
+                }
             }
 
             return ResponseResult.success("请求成功", PermissionResult.newInstance(approve, back)).response();
@@ -683,7 +693,7 @@ public class TaskController {
                 if(Objects.nonNull(flow)){
                     String type = node.getUserType();
                     String values = node.getOperation();
-                    System.err.println("type="+type+"  values="+values);
+                    //System.err.println("type="+type+"  values="+values);
                     if(Objects.nonNull(values)){
                         List<String> passCode = Arrays.asList(values.split(","));
                         if("user".equals(type) ){
