@@ -225,7 +225,7 @@ public class TaskController {
             String[] roles = ttp.getRole();
             if(Objects.nonNull(roles) && roles.length>0 ){
                 LambdaQueryWrapper<SysFlowExt> condition3 = new LambdaQueryWrapper();
-                condition3.in(SysFlowExt::getOperation, ttp.getRole());
+                condition3.in(SysFlowExt::getOperation, roles);
                 List<SysFlowExt> customRoleTasks = sysFlowExtMapper.selectList(condition3);
 
                 if(Objects.nonNull(customRoleTasks) && !customRoleTasks.isEmpty()){
@@ -829,25 +829,15 @@ public class TaskController {
             if( Objects.nonNull(customUserTasks1) )
                 customUserTasks.addAll(customUserTasks1);
 
-
-            //TODO: JDBC Connection [com.mysql.cj.jdbc.ConnectionImpl@25f6cf5e] will not be managed by Spring
-            //==>  Preparing: SELECT id,h_id,node,node_type,node_skip,field,conditions,value,operation,oper_name,user_type,next_node FROM s_sys_flow_b WHERE (operation IN () AND user_type = ?)
-            //==> Parameters: role(String)
-            //Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@314cd5ff]
-            //org.springframework.jdbc.BadSqlGrammarException:
-            //### Error querying database.  Cause: java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ') AND user_type = 'role')' at line 3
-            //### The error may exist in com/yuepong/workflow/mapper/SysFlowExtMapper.java (best guess)
-            //### The error may involve defaultParameterMap
-            //### The error occurred while setting parameters
-            //### SQL: SELECT  id,h_id,node,node_type,node_skip,field,conditions,value,operation,oper_name,user_type,next_node  FROM s_sys_flow_b     WHERE (operation IN () AND user_type = ?)
-            //### Cause: java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ') AND user_type = 'role')' at line 3
-            //; bad SQL grammar []; nested exception is java.sql.SQLSyntaxErrorException: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near ') AND user_type = 'role')' at line 3
-            LambdaQueryWrapper<SysFlowExt> condition2 = new LambdaQueryWrapper();
-            condition2.in(SysFlowExt::getOperation, ttp.getRole());
-            condition2.eq(SysFlowExt::getUserType, "role");
-            List<SysFlowExt> customUserTasks2 = sysFlowExtMapper.selectList(condition2);
-            if( Objects.nonNull(customUserTasks2) )
-                customUserTasks.addAll(customUserTasks2);
+            String[] roles = ttp.getRole();
+            if(Objects.nonNull(roles) && roles.length>0){
+                LambdaQueryWrapper<SysFlowExt> condition2 = new LambdaQueryWrapper();
+                condition2.in(SysFlowExt::getOperation, roles);
+                condition2.eq(SysFlowExt::getUserType, "role");
+                List<SysFlowExt> customUserTasks2 = sysFlowExtMapper.selectList(condition2);
+                if( Objects.nonNull(customUserTasks2) )
+                    customUserTasks.addAll(customUserTasks2);
+            }
 
             if(!customUserTasks.isEmpty()){
                 customUserTasks.stream().forEach(customUserTask -> {
