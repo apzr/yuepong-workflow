@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.yuepong.workflow.dto.SysTaskExt;
 import org.apache.ibatis.annotations.Mapper;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -20,4 +19,6 @@ import java.util.List;
 @Component
 public interface SysTaskExtMapper extends BaseMapper<SysTaskExt> {
     List<SysTaskExt> selectLatestNodes(String hid);
+
+    Integer selectCreatedCount(String uid);
 }

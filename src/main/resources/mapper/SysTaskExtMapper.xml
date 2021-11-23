@@ -30,4 +30,21 @@
             GROUP BY node
         )
     </select>
+    <select id="selectCreatedCount" resultType="java.lang.Integer">
+        SELECT count(1)
+        FROM s_sys_task_b
+        WHERE h_id IN (
+            SELECT table_b.h_id
+            FROM (
+                SELECT h_id, count( h_id ) AS count_h_id
+                FROM s_sys_task_b
+                WHERE `user` = #{uid}
+                GROUP BY h_id
+            ) AS table_b
+            WHERE table_b.count_h_id = 1
+        )
+        AND node LIKE 'startNode%'
+        AND `user` = #{uid}
+        ORDER BY h_id
+    </select>
 </mapper>

@@ -5,7 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.yuepong.jdev.api.bean.ResponseResult;
 import com.yuepong.jdev.code.CodeMsgs;
 import com.yuepong.jdev.exception.BizException;
-import com.yuepong.workflow.dto.*;
+import com.yuepong.workflow.dto.SysFlow;
+import com.yuepong.workflow.dto.SysFlowExt;
+import com.yuepong.workflow.dto.SysTask;
+import com.yuepong.workflow.dto.SysTaskExt;
 import com.yuepong.workflow.mapper.SysFlowExtMapper;
 import com.yuepong.workflow.mapper.SysFlowMapper;
 import com.yuepong.workflow.mapper.SysTaskExtMapper;
@@ -14,19 +17,20 @@ import com.yuepong.workflow.page.pager.TaskTodoPager;
 import com.yuepong.workflow.param.*;
 import com.yuepong.workflow.utils.Operations;
 import com.yuepong.workflow.utils.ProcessStatus;
-import io.swagger.annotations.*;
-import org.activiti.bpmn.model.*;
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiImplicitParam;
+import io.swagger.annotations.ApiImplicitParams;
+import io.swagger.annotations.ApiOperation;
 import org.activiti.bpmn.model.Process;
+import org.activiti.bpmn.model.*;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
 import org.activiti.engine.history.HistoricTaskInstance;
 import org.activiti.engine.history.HistoricVariableInstance;
-import org.activiti.engine.impl.RepositoryServiceImpl;
 import org.activiti.engine.impl.cmd.NeedsActiveTaskCmd;
 import org.activiti.engine.impl.interceptor.Command;
 import org.activiti.engine.impl.interceptor.CommandContext;
 import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
-import org.activiti.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntityManagerImpl;
 import org.activiti.engine.repository.ProcessDefinition;
@@ -133,11 +137,11 @@ public class TaskController {
             done = sysTaskExtMapper.selectCount(condition);
 
             //create
-            LambdaQueryWrapper<SysTaskExt> condition1 = new LambdaQueryWrapper();
-            condition1.eq(SysTaskExt::getUser, user_id);
-            condition1.like(SysTaskExt::getNode, "startNode%");
-            create = sysTaskExtMapper.selectCount(condition1);
-
+            //LambdaQueryWrapper<SysTaskExt> condition1 = new LambdaQueryWrapper();
+            //condition1.eq(SysTaskExt::getUser, user_id);
+            //condition1.like(SysTaskExt::getNode, "startNode%");
+            //create = sysTaskExtMapper.selectCount(condition1);
+            create = sysTaskExtMapper.selectCreatedCount(user_id);
 
             // to-do
             LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
@@ -196,11 +200,11 @@ public class TaskController {
             done = sysTaskExtMapper.selectCount(condition);
 
             //create
-            LambdaQueryWrapper<SysTaskExt> condition1 = new LambdaQueryWrapper();
-            condition1.eq(SysTaskExt::getUser, ttp.getUserId());
-            condition1.like(SysTaskExt::getNode, "startNode%");
-            create = sysTaskExtMapper.selectCount(condition1);
-
+            //LambdaQueryWrapper<SysTaskExt> condition1 = new LambdaQueryWrapper();
+            //.eq(SysTaskExt::getUser, ttp.getUserId());
+            //condition1.like(SysTaskExt::getNode, "startNode%");
+            //create = sysTaskExtMapper.selectCount(condition1);
+            create = sysTaskExtMapper.selectCreatedCount(ttp.getUserId());
 
             // to-do
             LambdaQueryWrapper<SysFlow> c = new LambdaQueryWrapper();
