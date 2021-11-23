@@ -361,7 +361,7 @@ swagger:
   enabled: true
 ```
 特别说明：  
- - check-process-definitions：自动部署验证，若为true则会判断该定义是否已经部署，没部署则部署，否则不部署；若为false则不管流程是否已经部署都重新部署一遍！
- - mvn clean package打包jar运行
- - 项目做得比较赶, 没有重构, 重构在refactor分支进行, 遵循只新增不改的原则, 保证原接口声明废气但是能用
+ - `check-process-definitions：`自动部署验证，若为true则会判断该定义是否已经部署，没部署则部署，否则不部署；若为false则不管流程是否已经部署都重新部署一遍！
+ - `mvn clean package`打包后执行`java -jar {package name}`启动
+ - 项目做得比较赶，没有重构，重构在`refactor`分支进行，遵循只新增不改的原则，保证原接口声明废气但是能用
  - 源码地址https://github.com/apzr/yuepong-workflow
