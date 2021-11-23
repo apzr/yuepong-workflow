@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import com.google.common.collect.Lists;
 import com.yuepong.jdev.api.bean.ResponseResult;
 import com.yuepong.jdev.code.CodeMsgs;
@@ -19,8 +18,8 @@ import com.yuepong.workflow.utils.ProcessStatus;
 import com.yuepong.workflow.utils.Utils;
 import io.swagger.annotations.*;
 import org.activiti.bpmn.converter.BpmnXMLConverter;
-import org.activiti.bpmn.model.*;
 import org.activiti.bpmn.model.Process;
+import org.activiti.bpmn.model.*;
 import org.activiti.editor.language.json.converter.BpmnJsonConverter;
 import org.activiti.engine.*;
 import org.activiti.engine.history.HistoricProcessInstance;
@@ -912,6 +911,7 @@ public class DeployController {
             LambdaQueryWrapper<SysTaskExt> condition = new LambdaQueryWrapper();
             condition.groupBy(SysTaskExt::getHId).select(SysTaskExt::getHId);
             condition.eq(SysTaskExt::getUser, userId);
+            condition.like(SysTaskExt::getNode, "Activity%");
             List<SysTaskExt> finishedTasks = sysTaskExtMapper.selectList(condition);
 
             if(Objects.nonNull(finishedTasks) && !finishedTasks.isEmpty()){
