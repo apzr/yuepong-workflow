@@ -269,7 +269,7 @@ public class TaskController {
     }
 
     @ApiOperation(value = "是否是最后一步")
-    @PostMapping("/task/isLast/{data_id}")
+    @GetMapping("/task/isLast/{data_id}")
     public ResponseEntity<?> getIsLastNode(@PathVariable String data_id) {
 	    try{
 	        boolean isLast;
