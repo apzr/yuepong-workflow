@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -716,6 +717,10 @@ public class DeployController {
             SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
 
             if(Objects.nonNull(flow)){
+                SysFlowExt node = checkNodes(flow.getId());
+                if(Objects.nonNull(node))
+                    return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"流程节点配置信息缺失，无法激活", node).response();
+
                 //执行激活前置条件判断
                 LambdaQueryWrapper<SysFlow> lambdaQuery1 = new QueryWrapper<SysFlow>().lambda();
                 lambdaQuery1.eq(SysFlow::getSysModel, flow.getSysModel());
@@ -726,7 +731,7 @@ public class DeployController {
                     sysFlowMapper.updateById(sameTypeFlow);
                 });
             }else{
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"节点配置信息缺失，无法激活", null).response();
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"部署实例信息缺失，无法激活", null).response();
             }
 
             return ResponseResult.success("请求成功", flow).response();
@@ -736,6 +741,33 @@ public class DeployController {
             ex.printStackTrace();
 			return ResponseResult.error(ex.getMessage()).response();
 		}
+    }
+
+    /*
+     * 检查节点是否数据齐全：网关有3个字段， 任务有2个字段
+     *
+     * @param id 
+     * @return void
+     * @author apr
+     * @date 2021/11/26 14:49
+     */
+    private SysFlowExt checkNodes(String hid) {
+        AtomicReference<SysFlowExt> n = new AtomicReference();;
+        List<SysFlowExt> nodes = sysFlowExtMapper.findNodesByHID(hid);
+        if(Objects.nonNull(nodes)){
+            nodes.forEach(node -> {
+                if("网关".equals(node.getNodeType())){
+                    if(StringUtils.isEmpty(node.getField()) || StringUtils.isEmpty(node.getConditions()) || StringUtils.isEmpty(node.getValue())){
+                       n.set(node);
+                    }
+                }else if("任务".equals(node.getNodeType())){
+                    if(StringUtils.isEmpty(node.getUserType()) || StringUtils.isEmpty(node.getOperation()) ){
+                       n.set(node);
+                    }
+                }
+            });
+        }
+        return n.get();
     }
 
     @ApiOperation(value = "禁用业务流程", notes = "禁用业务流程")
