@@ -711,10 +711,6 @@ public class DeployController {
     @GetMapping("/enable/{deploymentId_id}")
     public ResponseEntity<?> enableFlow(@PathVariable String deploymentId_id) {
         try{
-            if(!nodesMatch(deploymentId_id)) {
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"节点配置信息缺失，不允许激活", null).response();
-            }
-
             LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
             lambdaQuery.eq(SysFlow::getDeploymentId, deploymentId_id);
             SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
@@ -730,10 +726,41 @@ public class DeployController {
                     sysFlowMapper.updateById(sameTypeFlow);
                 });
             }else{
-                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"未查询到实例", deploymentId_id).response();
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"节点配置信息缺失，无法激活", null).response();
             }
 
-            return ResponseResult.success("请求成功", null).response();
+            return ResponseResult.success("请求成功", flow).response();
+		} catch (BizException be) {
+			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), deploymentId_id).response();
+		} catch (Exception ex) {
+            ex.printStackTrace();
+			return ResponseResult.error(ex.getMessage()).response();
+		}
+    }
+
+    @ApiOperation(value = "禁用业务流程", notes = "禁用业务流程")
+    @ApiImplicitParams({ @ApiImplicitParam(
+            name = "deploymentId_id",
+            value = "流程id",
+            dataType = "String",
+            paramType = "query",
+            example = "388d3160-3965-11ec-a578-3c970ef14df2"
+    ) })
+    @GetMapping("/disable/{deploymentId_id}")
+    public ResponseEntity<?> disableFlow(@PathVariable String deploymentId_id) {
+        try{
+            LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
+            lambdaQuery.eq(SysFlow::getDeploymentId, deploymentId_id);
+            SysFlow flow = sysFlowMapper.selectOne(lambdaQuery);
+
+            if(Objects.nonNull(flow)){
+                flow.setSysDisable(true);
+                sysFlowMapper.updateById(flow);
+            }else{
+                return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,"节点配置信息缺失，无法禁用", null).response();
+            }
+
+            return ResponseResult.success("请求成功", flow).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), deploymentId_id).response();
 		} catch (Exception ex) {
@@ -1067,14 +1094,14 @@ public class DeployController {
     /**
      * 比对节点匹配
      *
-     * @param instance_id
+     * @param dep_id
      * @return boolean
      * @author apr
      * @date 2021/11/12 16:13
      */
-    private boolean nodesMatch(String instance_id) {
+    private boolean nodesMatch(String dep_id) {
         LambdaQueryWrapper<SysFlow> lambdaQuery = new QueryWrapper<SysFlow>().lambda();
-        lambdaQuery.eq(SysFlow::getDeploymentId, instance_id);
+        lambdaQuery.eq(SysFlow::getDeploymentId, dep_id);
         SysFlow sysFlow = sysFlowMapper.selectOne(lambdaQuery);
         return Objects.nonNull(sysFlow);
 //        List<SysFlowExt> nodes = sysFlowExtMapper.findNodesByHID(sysFlow.getId());
