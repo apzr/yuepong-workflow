@@ -52,7 +52,7 @@ public class SysTaskExtResult implements Comparable<SysTaskExtResult>{
 	/*
      * 操作时间
      */
-    private String time;
+    private long time;
 	/*
      * 停留时长(从上个节点结束的时间到当前节点操作的时间)
      */
@@ -73,7 +73,11 @@ public class SysTaskExtResult implements Comparable<SysTaskExtResult>{
         s.userType = taskInfo.getUserType();
         s.record = taskInfo.getRecord();
         s.opinion = taskInfo.getOpinion();
-        s.time = taskInfo.getTime();
+        try{
+            s.time = Long.parseLong(taskInfo.getTime());
+        }catch(Exception e){
+            s.time = 0L;
+        }
         s.operTime = taskInfo.getOperTime();
 
         return s;
@@ -81,16 +85,9 @@ public class SysTaskExtResult implements Comparable<SysTaskExtResult>{
 
     @Override
     public int compareTo(SysTaskExtResult s) {
-        try{
-            Long.parseLong(this.time);
-            Long.parseLong(s.getTime());
-        }catch(Exception e){
-            return -1;
-        }
-
-        if(this.time.equals(s.getTime()))
+        if(this.time == s.getTime())
             return 0;
-        else if(Long.parseLong(this.time) > Long.parseLong(s.getTime()))
+        else if(this.time > s.getTime())
             return -1;
         else
             return 1;
