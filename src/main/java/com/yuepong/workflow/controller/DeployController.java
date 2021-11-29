@@ -963,7 +963,9 @@ public class DeployController {
             @ApiImplicitParam(name = "pageSize", value = "页容量", dataType = "String", paramType = "query", example = "")
     })
     @GetMapping("/process/instanceList/user")
-    public ResponseEntity<?> getTaskFinishedByUser(@RequestParam String userId) {
+    public ResponseEntity<?> getTaskFinishedByUser(@RequestParam String userId, @RequestParam @Nullable Long pageIndex,
+                                                   @RequestParam @Nullable Long pageSize) {
+        ProcessInstancePager p = null;
         try{
             List<ProcessInstanceDTO> instanceDTOS = null;
 
@@ -982,16 +984,26 @@ public class DeployController {
 
                 Calendar now = Calendar.getInstance();
                 now.add(Calendar.DAY_OF_MONTH, -30);
+                long count = historyService.createHistoricProcessInstanceQuery()
+                        .processInstanceIds(instanceIds)
+                        .startedAfter(now.getTime())
+                        .orderByProcessInstanceStartTime().desc()
+                        .count();
+
+                //分页
+                p = new ProcessInstancePager(null, pageIndex, pageSize, count);
                 List<HistoricProcessInstance> instances = historyService.createHistoricProcessInstanceQuery()
                         .processInstanceIds(instanceIds)
                         .startedAfter(now.getTime())
                         .orderByProcessInstanceStartTime().desc()
-                        .list();
+                        .listPage(p.getFirst().intValue(), p.getPageSize().intValue());
 
+                //填充
                 instanceDTOS = fillInstanceDTOByInstance(instances);
+                p.setData(instanceDTOS);
             }
 
-            return ResponseResult.success("请求成功", instanceDTOS).response();
+            return ResponseResult.success("请求成功", p).response();
 		} catch (BizException be) {
 			return ResponseResult.obtain(CodeMsgs.SERVICE_BASE_ERROR,be.getMessage(), null).response();
 		} catch (Exception ex) {
