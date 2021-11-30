@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  */
 @Transactional
 @Controller
-@Api(tags="模型 Model")
+@Api(tags="模型与流程")
 @RequestMapping("/model")
 public class DeployController {
 

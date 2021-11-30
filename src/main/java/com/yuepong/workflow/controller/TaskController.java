@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  * @Description <p> 任务相关接口 </p>
  */
 @Controller
-@Api(tags = "任务相关接口")
+@Api(tags = "任务操作")
 public class TaskController {
 
     ProcessEngine processEngine = ProcessEngines.getDefaultProcessEngine();

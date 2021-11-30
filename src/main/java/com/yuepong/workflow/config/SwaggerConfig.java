@@ -35,7 +35,7 @@ public class SwaggerConfig {
     private ApiInfo apiInfo() {
         return new ApiInfoBuilder()
                 .title("yuepong.com工作流API")
-                .description("April Z")
+                .description("提供基于Activiti7的审批流程操作接口")
                 // 作者信息
                 .contact(new Contact("April Z", "iswallow1l2l@126.com", "iswallow1l2l@gmail.com"))
                 .version("1.0.0")

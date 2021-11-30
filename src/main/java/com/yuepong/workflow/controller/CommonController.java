@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
  * @date 2021/11/18 10:21:09
  **/
 @Controller
-@Api(tags = "通用")
+@Api(tags = "通用接口")
 public class CommonController {
 
     @GetMapping("/ver")
