@@ -106,8 +106,9 @@ public class TaskController {
                 if(Objects.nonNull(allNodes)){
                     List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(current.getTaskDefinitionKey())).collect(Collectors.toList());
                     FlowNode currentElement = (FlowNode)currentElements.get(0);
-                    FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();
-                    if(prevNode!=null && !(prevNode instanceof StartEvent)){
+                    //FIXME：这个get0应该用遍历？应该是用历史来源，怎么走来的就get哪个
+                    SequenceFlow prevNode = currentElement.getIncomingFlows().get(0);
+                    if(!isStartNode(prevNode)){
                         back = false;
                     }
                 }
@@ -715,8 +716,8 @@ public class TaskController {
             Collection<FlowElement> allNodes = getNodes(currentTask.getProcessDefinitionId());
             List<FlowElement> currentElements = allNodes.stream().filter(node -> node.getId().equals(currentTask.getTaskDefinitionKey())).collect(Collectors.toList());
             FlowNode currentElement = (FlowNode)currentElements.get(0);
-            FlowElement prevNode = currentElement.getIncomingFlows().get(0).getSourceFlowElement();
-            if(prevNode!=null && prevNode instanceof StartEvent){
+            SequenceFlow prevNode = currentElement.getIncomingFlows().get(0);
+            if(isStartNode(prevNode)){
                 //获取创建人
                 ProcessInstance processInstance = runtimeService.createProcessInstanceQuery().processInstanceId(currentTask.getProcessInstanceId()).singleResult();
                 Object creator = runtimeService.getVariable(processInstance.getId(), "creator");
@@ -1284,4 +1285,11 @@ public class TaskController {
         return getVariableByInstanceId(key, instId, null);
     }
 
+    private boolean isStartNode(SequenceFlow currentElement){
+        FlowElement prevNode = currentElement.getSourceFlowElement();
+        if(prevNode != null && prevNode instanceof Gateway)//ExclusiveGateway
+            return isStartNode(((Gateway)prevNode).getIncomingFlows().get(0));
+        else
+            return prevNode instanceof StartEvent;
+    }
 }
